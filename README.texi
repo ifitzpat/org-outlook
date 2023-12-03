@@ -1,0 +1,289 @@
+\input texinfo    @c -*- texinfo -*-
+@c %**start of header
+@setfilename README.info
+@settitle org-outlook
+@documentencoding UTF-8
+@documentlanguage en
+@c %**end of header
+
+@dircategory Emacs
+@direntry
+* Org Outlook: (org-outlook).
+@end direntry
+
+@finalout
+@titlepage
+@title org-outlook
+@author Ian FitzPatrick
+@end titlepage
+
+@contents
+
+@ifnottex
+@node Top
+@top org-outlook
+
+Conquer your Microsoft Outlook agenda from the comfort of Emacs.
+
+@strong{Disclaimer:} org-outlook is currently in pre-alpha. Installation currently requires a
+Microsoft App Registration and some manual configuration. Updates & responses to issues
+will be sporadic.
+@end ifnottex
+
+@menu
+* Contents::
+* Features::
+* Screenshots::
+* Installation::
+* Usage::
+* Changelog::
+* Notes::
+* License::
+
+@detailmenu
+--- The Detailed Node Listing ---
+
+Installation
+
+* Prerequisites::
+* Dependencies::
+* Quelpa::
+
+Usage
+
+* Commands::
+* Tips::
+
+Changelog
+
+* 0.0.1-pre-alpha: 001-pre-alpha. 
+
+Notes
+
+* Known issues::
+
+@end detailmenu
+@end menu
+
+@node Contents
+@chapter Contents
+
+@itemize
+@item
+@item
+@item
+@item
+@item
+@item
+@end itemize
+
+@node Features
+@chapter Features
+
+@itemize
+@item
+@strong{Integrated with} @uref{https://github.com/org-roam, org-roam}
+@itemize
+@item
+Find outlook events with @samp{org-roam-node-find}
+@item
+Refile outlook events to any file within @samp{org-roam-directory}  
+@end itemize
+@item
+@strong{Accept and Decline meeting requests from the agenda buffer}
+@item
+@strong{Join Teams calls directly from the agenda buffer} (launches Teams or web browser)
+@item
+@strong{At-a-glace overview of your appointments and fee timeslots when used with} @uref{https://github.com/ichernyshovvv/org-timeblock, org-timeblock}
+@end itemize
+
+@emph{Planned features & improvements:}
+
+@itemize
+@item
+Reduce the number of dependencies
+@item
+Provide a universal App Registration  
+@item
+More configurability  
+@item
+Two-way sync of event body (owned events only).
+@item
+Org capture template to quickly plan meetings.
+@end itemize
+
+@emph{Future:}
+
+@itemize
+@item
+Org contacts integration
+@end itemize
+
+@node Screenshots
+@chapter Screenshots
+
+@image{images/org-outlook-demo,,,,png}
+
+@node Installation
+@chapter Installation
+
+@menu
+* Prerequisites::
+* Dependencies::
+* Quelpa::
+@end menu
+
+@node Prerequisites
+@section Prerequisites
+
+You will need to create an App Registration in Microsoft Entra (Formally Azure Active
+Directory) via @uref{https://portal.azure.com}. Make a note of your @samp{tenant-id} you'll need this
+later. The app will need the @samp{Calendars.Read}, @samp{Calendars.ReadWrite}, and @samp{offline_access} API
+permissions. Under "Certificates & secrets" register a new Client secret (copy the value
+and insert into your config as specified below). From the "Overview" tab copy the
+@samp{Application (client) id} and insert into your config as specified below.
+
+@node Dependencies
+@section Dependencies
+
+@itemize
+@item
+@uref{http://github.com/lujun9972/html2org.el, html2org}
+@item
+@uref{https://github.com/ndwarshuis/org-ml, org-ml}
+@item
+@uref{https://github.com/org-roam, org-roam}
+@item
+@uref{https://github.com/jeremy-compostella/org-msg, org-msg}  
+@item
+@uref{https://github.com/tkf/emacs-request/tree/master, emacs-request}  
+@item
+@uref{https://github.com/hniksic/emacs-htmlize, htmlize}
+@end itemize
+
+@node Quelpa
+@section Quelpa
+
+The package @samp{org-outlook} is not currently available from @uref{https://melpa.org/#/org-ql, MELPA}, but can be installed
+directly from github with @uref{https://framagit.org/steckerhalter/quelpa, Quelpa}.
+
+Installing with @uref{https://framagit.org/steckerhalter/quelpa, Quelpa} is easy:
+
+@enumerate
+@item
+Install @uref{https://framagit.org/steckerhalter/quelpa-use-package#installation, quelpa-use-package} (which can be installed directly from MELPA).
+@item
+Add this form to your init file:
+@end enumerate
+
+@lisp
+(use-package org-outlook
+  :quelpa (org-outlook :fetcher github :repo "ifitzpat/org-outlook")
+  :config
+  (setq org-outlook-client-id "client-id-of-your-registered-app")
+  (setq org-outlook-client-secret "client-secret-of-your-registered-app")
+  (setq org-outlook-tenant-id "your-azure-tenant-id")
+  (setq org-outlook-gpg-recipient "you@@example.com")
+  (setq org-outlook-local-timezone "Central European Standard Time") ; Your local time zone
+  (setq org-outlook-auth-url "https://login.microsoftonline.com/your-azure-tenant-id/oauth2/v2.0/authorize")
+  (setq org-outlook-token-url "https://login.microsoftonline.com/your-azure-tenant-id/oauth2/v2.0/token")
+  (setq org-outlook-resource-url "https://graph.microsoft.com/Calendars.ReadWrite")
+  (setq org-outlook-events-url "https://graph.microsoft.com/v1.0/me/calendarview")
+  (setq org-outlook-events-create-url "https://graph.microsoft.com/v1.0/me/calendar/events")
+  (setq org-outlook-file "/path/to/outlook.org")
+  (setq org-outlook-sync-start 14) ; number of days in the past to keep in sync
+  (setq org-outlook-sync-end 90) ; number of days in the future to keep in sync
+  )
+@end lisp
+
+@node Usage
+@chapter Usage
+
+@itemize
+@item
+@item
+@end itemize
+
+@menu
+* Commands::
+* Tips::
+@end menu
+
+@node Commands
+@section Commands
+
+@itemize
+@item
+@strong{Syncing Outlook events:}
+@itemize
+@item
+@samp{org-outlook-sync}
+@end itemize
+@item
+@strong{Accepting a meeting request:}
+@itemize
+@item
+With point on the entry in the ageda view or within the org entry body: @samp{org-outlook-accept-event} 
+@end itemize
+@item
+@strong{Declining a meeting request:}
+@itemize
+@item
+With point on the entry in the ageda view or within the org entry body: @samp{org-outlook-decline-event} 
+@end itemize
+@item
+@strong{Joining a Teams meeting:}
+@itemize
+@item
+With point on the entry in the ageda view or within the org entry body: @samp{org-outlook-join-teams-call} 
+@end itemize
+@end itemize
+
+@node Tips
+@section Tips
+
+@itemize
+@item
+Calling @samp{org-outlook-sync} via @samp{emacs --batch} avoids blocking your main emacs session.
+@end itemize
+
+@node Changelog
+@chapter Changelog
+
+@emph{Note:} Breaking changes may be made before version 1.0, but in the event of major changes, attempts at backward compatibility will be made with obsolescence declarations, translation of arguments, etc.  Users who need stability guarantees before 1.0 may choose to use tagged stable releases.
+
+@menu
+* 0.0.1-pre-alpha: 001-pre-alpha. 
+@end menu
+
+@node 001-pre-alpha
+@section 0.0.1-pre-alpha
+
+Initial release
+
+@node Notes
+@chapter Notes
+
+@menu
+* Known issues::
+@end menu
+
+@node Known issues
+@section Known issues
+
+@itemize
+@item
+Winter-to-summer time switching may cause duplicate events to appear.
+@item
+Events that are rescheduled sometimes show up twice.
+@item
+Accepting an event doesn't change the event status from @samp{REQUEST} to @samp{MEETING} until the
+next sync.
+@end itemize
+
+@node License
+@chapter License
+
+GPLv3
+
+@bye

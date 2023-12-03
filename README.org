@@ -1,0 +1,198 @@
+#+TITLE: org-outlook
+# This README template was copied from  org-ql's README.org. Credit goes to alphapapa.
+
+Conquer your Microsoft Outlook agenda from the comfort of Emacs.
+
+*Disclaimer:* org-outlook is currently in pre-alpha. Installation currently requires a
+Microsoft App Registration and some manual configuration. Updates & responses to issues
+will be sporadic.
+
+* Contents
+:PROPERTIES:
+:TOC:      :include siblings :depth 0 :ignore this :force depth
+:END:
+:CONTENTS:
+- [[#features][Features]]
+- [[#screenshots][Screenshots]]
+- [[#installation][Installation]]
+- [[#usage][Usage]]
+- [[#changelog][Changelog]]
+- [[#notes][Notes]]  
+:END:
+
+* Features
+
++ *Integrated with* [[https://github.com/org-roam][org-roam]]
+  - Find outlook events with =org-roam-node-find=
+  - Refile outlook events to any file within =org-roam-directory=  
++ *Accept and Decline meeting requests from the agenda buffer*
++ *Join Teams calls directly from the agenda buffer* (launches Teams or web browser)
++ *At-a-glace overview of your appointments and fee timeslots when used with* [[https://github.com/ichernyshovvv/org-timeblock][org-timeblock]]
+
+/Planned features & improvements:/
+
++ Reduce the number of dependencies
++ Provide a universal App Registration  
++ More configurability  
++ Two-way sync of event body (owned events only).
++ Org capture template to quickly plan meetings.
+  
+/Future:/
+
++ Org contacts integration
+
+* Screenshots
+
+[[file:images/org-outlook-demo.png]]
+
+* Installation
+:PROPERTIES:
+:TOC:      ignore-children
+:END:
+
+** Prerequisites
+
+You will need to create an App Registration in Microsoft Entra (Formally Azure Active
+Directory) via [[https://portal.azure.com]]. Make a note of your =tenant-id= you'll need this
+later. The app will need the =Calendars.Read=, =Calendars.ReadWrite=, and =offline_access= API
+permissions. Under "Certificates & secrets" register a new Client secret (copy the value
+and insert into your config as specified below). From the "Overview" tab copy the
+=Application (client) id= and insert into your config as specified below.
+
+** Dependencies
+
+ - [[http://github.com/lujun9972/html2org.el][html2org]]
+ - [[https://github.com/ndwarshuis/org-ml][org-ml]]
+ - [[https://github.com/org-roam][org-roam]]
+ - [[https://github.com/jeremy-compostella/org-msg][org-msg]]  
+ - [[https://github.com/tkf/emacs-request/tree/master][emacs-request]]  
+ - [[https://github.com/hniksic/emacs-htmlize][htmlize]]
+   
+** Quelpa
+
+The package =org-outlook= is not currently available from [[https://melpa.org/#/org-ql][MELPA]], but can be installed
+directly from github with [[https://framagit.org/steckerhalter/quelpa][Quelpa]].
+
+Installing with [[https://framagit.org/steckerhalter/quelpa][Quelpa]] is easy:
+
+1.  Install [[https://framagit.org/steckerhalter/quelpa-use-package#installation][quelpa-use-package]] (which can be installed directly from MELPA).
+2.  Add this form to your init file:
+
+#+BEGIN_SRC elisp
+(use-package org-outlook
+  :quelpa (org-outlook :fetcher github :repo "ifitzpat/org-outlook")
+  :config
+  (setq org-outlook-client-id "client-id-of-your-registered-app")
+  (setq org-outlook-client-secret "client-secret-of-your-registered-app")
+  (setq org-outlook-tenant-id "your-azure-tenant-id")
+  (setq org-outlook-gpg-recipient "you@example.com")
+  (setq org-outlook-local-timezone "Central European Standard Time") ; Your local time zone
+  (setq org-outlook-auth-url "https://login.microsoftonline.com/your-azure-tenant-id/oauth2/v2.0/authorize")
+  (setq org-outlook-token-url "https://login.microsoftonline.com/your-azure-tenant-id/oauth2/v2.0/token")
+  (setq org-outlook-resource-url "https://graph.microsoft.com/Calendars.ReadWrite")
+  (setq org-outlook-events-url "https://graph.microsoft.com/v1.0/me/calendarview")
+  (setq org-outlook-events-create-url "https://graph.microsoft.com/v1.0/me/calendar/events")
+  (setq org-outlook-file "/path/to/outlook.org")
+  (setq org-outlook-sync-start 14) ; number of days in the past to keep in sync
+  (setq org-outlook-sync-end 90) ; number of days in the future to keep in sync
+  )
+#+END_SRC
+
+* Usage
+:PROPERTIES:
+:TOC:      :include descendants :depth 1
+:END:
+:CONTENTS:
+- [[#commands][Commands]]
+- [[#tips][Tips]]
+:END:
+
+# These links work on GitHub's Org renderer but not in Org.
+
+** Commands
+:PROPERTIES:
+:TOC:      ignore-children
+:END:
+
++  *Syncing Outlook events:*
+     -  =org-outlook-sync=
++  *Accepting a meeting request:*
+     - With point on the entry in the ageda view or within the org entry body: =org-outlook-accept-event= 
++  *Declining a meeting request:*
+     - With point on the entry in the ageda view or within the org entry body: =org-outlook-decline-event= 
++  *Joining a Teams meeting:*
+     - With point on the entry in the ageda view or within the org entry body: =org-outlook-join-teams-call= 
+
+** Tips
+
++ Calling =org-outlook-sync= via =emacs --batch= avoids blocking your main emacs session.
+
+
+
+* Changelog
+:PROPERTIES:
+:TOC:      ignore-children
+:END:
+
+/Note:/ Breaking changes may be made before version 1.0, but in the event of major changes, attempts at backward compatibility will be made with obsolescence declarations, translation of arguments, etc.  Users who need stability guarantees before 1.0 may choose to use tagged stable releases.
+
+** 0.0.1-pre-alpha
+
+Initial release
+
+* Notes
+:PROPERTIES:
+:TOC:      ignore-children
+:END:
+
+** Known issues
+
+ - Winter-to-summer time switching may cause duplicate events to appear.
+ - Events that are rescheduled sometimes show up twice.
+ - Accepting an event doesn't change the event status from =REQUEST= to =MEETING= until the
+   next sync.
+
+* License
+:PROPERTIES:
+:TOC:      :ignore this
+:END:
+
+GPLv3
+
+* COMMENT Code                                                     :noexport:
+:PROPERTIES:
+:TOC:      :ignore this
+:END:
+
+# The COMMENT keyword prevents GitHub's renderer from showing this entry.
+
+Code used to update this document.
+
+* COMMENT Export setup                                             :noexport:
+:PROPERTIES:
+:TOC:      :ignore this
+:END:
+
+# Copied from org-super-agenda's readme, in which much was borrowed from Org's =org-manual.org=.
+
+#+OPTIONS: broken-links:t *:t
+
+** Info export options
+
+#+TEXINFO_DIR_CATEGORY: Emacs
+#+TEXINFO_DIR_TITLE: Org Outlook: (org-outlook)
+
+# NOTE: We could use these, but that causes a pointless error, "org-compile-file: File "..README.info" wasn't produced...", so we just rename the files in the after-save-hook instead.
+# #+TEXINFO_FILENAME: org-outlook.info
+# #+EXPORT_FILE_NAME: org-outlook.texi
+
+** File-local variables
+
+# NOTE: Setting org-comment-string buffer-locally is a nasty hack to work around GitHub's org-ruby's HTML rendering, which does not respect noexport tags.  The only way to hide this tree from its output is to use the COMMENT keyword, but that prevents Org from processing the export options declared in it.  So since these file-local variables don't affect org-ruby, wet set org-comment-string to an unused keyword, which prevents Org from deleting this tree from the export buffer, which allows it to find the export options in it.  And since org-export does respect the noexport tag, the tree is excluded from the info page.
+
+# Local Variables:
+# before-save-hook: org-make-toc
+# after-save-hook: (lambda nil (when (and (require 'ox-texinfo nil t) (org-texinfo-export-to-info)) (delete-file "README.texi") (rename-file "README.info" "org-ql.info" t)))
+# org-export-initial-scope: buffer
+# org-comment-string: "NOTCOMMENT"
+# End:
