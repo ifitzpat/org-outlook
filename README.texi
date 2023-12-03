@@ -94,7 +94,7 @@ Refile outlook events to any file within @samp{org-roam-directory}
 @item
 @strong{Join Teams calls directly from the agenda buffer} (launches Teams or web browser)
 @item
-@strong{At-a-glace overview of your appointments and fee timeslots when used with} @uref{https://github.com/ichernyshovvv/org-timeblock, org-timeblock}
+@strong{At-a-glance overview of your appointments and fee timeslots when used with} @uref{https://github.com/ichernyshovvv/org-timeblock, org-timeblock}
 @end itemize
 
 @emph{Planned features & improvements:}

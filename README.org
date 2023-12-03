@@ -27,7 +27,7 @@ will be sporadic.
   - Refile outlook events to any file within =org-roam-directory=  
 + *Accept and Decline meeting requests from the agenda buffer*
 + *Join Teams calls directly from the agenda buffer* (launches Teams or web browser)
-+ *At-a-glace overview of your appointments and fee timeslots when used with* [[https://github.com/ichernyshovvv/org-timeblock][org-timeblock]]
++ *At-a-glance overview of your appointments and fee timeslots when used with* [[https://github.com/ichernyshovvv/org-timeblock][org-timeblock]]
 
 /Planned features & improvements:/
 
