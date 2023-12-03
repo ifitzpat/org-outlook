@@ -148,7 +148,7 @@ and insert into your config as specified below). From the "Overview" tab copy th
 
 @itemize
 @item
-@uref{https://www.gnupg.org/, gnupg}
+@uref{https://www.gnupg.org/, gnupg}: org-outlook requires you to have a public/private gpg keypair capable of encryption
 @item
 @uref{http://github.com/lujun9972/html2org.el, html2org}
 @item
