@@ -3,9 +3,7 @@
 
 Conquer your Microsoft Outlook agenda from the comfort of Emacs.
 
-*Disclaimer:* org-outlook is currently in pre-alpha. Installation currently requires a
-Microsoft App Registration and some manual configuration. Updates & responses to issues
-will be sporadic.
+*Disclaimer:* org-outlook is currently in pre-alpha. Updates & responses to issues will be sporadic.
 
 * Contents
 :PROPERTIES:
@@ -52,12 +50,9 @@ will be sporadic.
 
 ** Prerequisites
 
-You will need to create an App Registration in Microsoft Entra (Formally Azure Active
-Directory) via [[https://portal.azure.com]]. Make a note of your =tenant-id= you'll need this
-later. The app will need the =Calendars.Read=, =Calendars.ReadWrite=, and =offline_access= API
-permissions. Under "Certificates & secrets" register a new Client secret (copy the value
-and insert into your config as specified below). From the "Overview" tab copy the
-=Application (client) id= and insert into your config as specified below.
+Upon first launch you will be asked to give =org-outlook= permission to read and write to
+your Outlook calendar. Note: Some organisations will have disabled third-party
+applications. In this case, unfortunately, you won't be able to use =org-outlook=. 
 
 ** Dependencies
 
@@ -68,7 +63,21 @@ and insert into your config as specified below). From the "Overview" tab copy th
  - [[https://github.com/jeremy-compostella/org-msg][org-msg]]  
  - [[https://github.com/tkf/emacs-request/tree/master][emacs-request]]  
  - [[https://github.com/hniksic/emacs-htmlize][htmlize]]
-   
+
+** Optional
+ 
+A standard oauth client is provided with =org-outlook=, you are of course, free to use your
+own Microsoft Entra App Registration instead. To do so you will need to create an App
+Registration in Microsoft Entra (Formally Azure Active Directory) via
+[[https://portal.azure.com]]. Optionally make a note of your =tenant-id= (you can provide
+=org-outlook-tenant-id= to restrict the scope of your app to your Azure tenant). The app
+will need the =Calendars.Read=, =Calendars.ReadWrite=, and =offline_access= API
+permissions. Under "Authentication" click =Add a platform= and add =http://localhost:9004= as
+the redirect uri. At the bottom of the page ensure =Allow public client flows= is toggled to
+"Yes". From the "Overview" tab copy the =Application (client) id= and insert into your
+config as specified below.
+
+  
 ** Quelpa
 
 The package =org-outlook= is not currently available from [[https://melpa.org/#/org-ql][MELPA]], but can be installed
@@ -83,16 +92,10 @@ Installing with [[https://framagit.org/steckerhalter/quelpa][Quelpa]] is easy:
 (use-package org-outlook
   :quelpa (org-outlook :fetcher github :repo "ifitzpat/org-outlook")
   :config
-  (setq org-outlook-client-id "client-id-of-your-registered-app")
-  (setq org-outlook-client-secret "client-secret-of-your-registered-app")
-  (setq org-outlook-tenant-id "your-azure-tenant-id")
+  ;(setq org-outlook-client-id "client-id-of-your-registered-app") ;; OPTIONAL
+  ;(setq org-outlook-tenant-id "your-azure-tenant-id") ;; OPTIONAL
   (setq org-outlook-gpg-recipient "you@example.com")
   (setq org-outlook-local-timezone "Central European Standard Time") ; Your local time zone
-  (setq org-outlook-auth-url "https://login.microsoftonline.com/your-azure-tenant-id/oauth2/v2.0/authorize")
-  (setq org-outlook-token-url "https://login.microsoftonline.com/your-azure-tenant-id/oauth2/v2.0/token")
-  (setq org-outlook-resource-url "https://graph.microsoft.com/Calendars.ReadWrite")
-  (setq org-outlook-events-url "https://graph.microsoft.com/v1.0/me/calendarview")
-  (setq org-outlook-events-create-url "https://graph.microsoft.com/v1.0/me/calendar/events")
   (setq org-outlook-file "/path/to/outlook.org")
   (setq org-outlook-sync-start 14) ; number of days in the past to keep in sync
   (setq org-outlook-sync-end 90) ; number of days in the future to keep in sync
@@ -118,11 +121,11 @@ Installing with [[https://framagit.org/steckerhalter/quelpa][Quelpa]] is easy:
 +  *Syncing Outlook events:*
      -  =org-outlook-sync=
 +  *Accepting a meeting request:*
-     - With point on the entry in the ageda view or within the org entry body: =org-outlook-accept-event= 
+     - With point on the entry in the agenda view or within the org entry body: =org-outlook-accept-event= 
 +  *Declining a meeting request:*
-     - With point on the entry in the ageda view or within the org entry body: =org-outlook-decline-event= 
+     - With point on the entry in the agenda view or within the org entry body: =org-outlook-decline-event= 
 +  *Joining a Teams meeting:*
-     - With point on the entry in the ageda view or within the org entry body: =org-outlook-join-teams-call= 
+     - With point on the entry in the agenda view or within the org entry body: =org-outlook-join-teams-call= 
 
 ** Tips
 
@@ -136,6 +139,10 @@ Installing with [[https://framagit.org/steckerhalter/quelpa][Quelpa]] is easy:
 :END:
 
 /Note:/ Breaking changes may be made before version 1.0, but in the event of major changes, attempts at backward compatibility will be made with obsolescence declarations, translation of arguments, etc.  Users who need stability guarantees before 1.0 may choose to use tagged stable releases.
+
+** 0.0.2-pre-alpha
+
+Switch to PKCE oauth flow & provide default auth client
 
 ** 0.0.1-pre-alpha
 
