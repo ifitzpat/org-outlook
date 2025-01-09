@@ -33,14 +33,25 @@
 (require 'html2org)
 (require 'request)
 (require 'org-msg)
+(require 'org-id)
 
-(setq org-outlook-local-timezone "Central European Standard Time")
-(setq org-outlook-resource-url "https://graph.microsoft.com/Calendars.ReadWrite")
-(setq org-outlook-events-url "https://graph.microsoft.com/v1.0/me/calendarview")
-(setq org-outlook-events-create-url "https://graph.microsoft.com/v1.0/me/calendar/events")
-(setq org-outlook-token-cache-file "~/.cache/outlook.plist")
-(setq org-outlook-sync-start 14)
-(setq org-outlook-sync-end 90)
+(defconst org-outlook-resource-url "https://graph.microsoft.com/Calendars.ReadWrite")
+(defconst org-outlook-events-url "https://graph.microsoft.com/v1.0/me/calendarview")
+(defconst org-outlook-events-create-url "https://graph.microsoft.com/v1.0/me/calendar/events")
+
+(defvar org-outlook-local-timezone "Central European Standard Time" "Your timezone")
+(defvar org-outlook-token-cache-file "~/.cache/outlook.plist" "Path to a plist file to keep the encrypted secret tokens")
+(defvar org-outlook-sync-start 14 "How many days 'in the past' should be synced?")
+(defvar org-outlook-sync-end 90 "How many days 'in the future' should be synced?")
+
+(defvar org-outlook-client-id "3df0b076-dc9c-48f8-b940-a271ed0bb14b" "Microsoft Entra App Registration Client ID. You can use the default or provide your own if you prefer (see README.org for details)")
+(defvar org-outlook-tenant-id "organizations" "If you provide your own App Registration you can optionally set this to only your outlook tenant (see README.org for details).")
+
+(defvar org-outlook-auth-url (format "https://login.microsoftonline.com/%s/oauth2/v2.0/authorize" org-outlook-tenant-id))
+(setq org-outlook-token-url (format "https://login.microsoftonline.com/%s/oauth2/v2.0/token" org-outlook-tenant-id))
+
+(setq org-outlook-code-verifier (org-id-uuid))
+(setq org-outlook-code-challenge (secure-hash 'sha256 org-outlook-code-verifier))
 
 (defun n-days-ago (&optional n)
   (let* ((days (or n 90))
@@ -119,6 +130,8 @@
           (concat org-outlook-auth-url
                   "?client_id=" (url-hexify-string org-outlook-client-id)
                   "&response_type=code"
+		  "&code_challenge=" org-outlook-code-challenge
+		  "&code_challenge_method=S256"
                   "&redirect_uri=" (url-hexify-string "http://localhost:9004")
                   "&scope=" (url-hexify-string (concat "offline_access " org-outlook-resource-url )))))
 
@@ -174,7 +187,7 @@
 	      ,(if refresh_token
 		   '("grant_type" . "refresh_token")
 	         '("grant_type" . "authorization_code"))
-	      ("client_secret" . ,org-outlook-client-secret))
+	      ("code_verifier" . ,org-outlook-code-verifier))
       :parser 'json-read
       :success (cl-function
 		(lambda (&key data &allow-other-keys)
