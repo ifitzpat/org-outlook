@@ -33,7 +33,6 @@
 (require 'html2org)
 (require 'request)
 (require 'org-msg)
-(require 'org-id)
 
 (defconst org-outlook-resource-url "https://graph.microsoft.com/Calendars.ReadWrite")
 (defconst org-outlook-events-url "https://graph.microsoft.com/v1.0/me/calendarview")
@@ -50,9 +49,19 @@
 (defvar org-outlook-auth-url (format "https://login.microsoftonline.com/%s/oauth2/v2.0/authorize" org-outlook-tenant-id))
 (setq org-outlook-token-url (format "https://login.microsoftonline.com/%s/oauth2/v2.0/token" org-outlook-tenant-id))
 
-(setq org-outlook-code-verifier (org-id-uuid))
-(setq org-outlook-code-challenge (secure-hash 'sha256 org-outlook-code-verifier))
+(defun org-outlook-generate-random-string (length)
+  "Generate a random string of LENGTH consisting of URL-safe characters."
+  (let ((chars "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
+        (result ""))
+    (dotimes (_ length)
+      (setq result (concat result (string (aref chars (random (length chars)))))))
+    result))
 
+(setq org-outlook-code-verifier (org-outlook-generate-random-string 43))
+;(setq org-outlook-code-challenge (base64url-encode-string (secure-hash 'sha256 org-outlook-code-verifier))) ;; FIXME
+(setq org-outlook-code-challenge org-outlook-code-verifier)
+
+;;
 (defun n-days-ago (&optional n)
   (let* ((days (or n 90))
          (timestamp (time-subtract (current-time) (days-to-time days))))
@@ -131,14 +140,14 @@
                   "?client_id=" (url-hexify-string org-outlook-client-id)
                   "&response_type=code"
 		  "&code_challenge=" org-outlook-code-challenge
-		  "&code_challenge_method=S256"
+		  "&code_challenge_method=plain"
                   "&redirect_uri=" (url-hexify-string "http://localhost:9004")
                   "&scope=" (url-hexify-string (concat "offline_access " org-outlook-resource-url )))))
 
     (start-auth-code-server)
     (sleep-for 20) ;; TODO fix this
-    (browse-url outlook-auth-url)
-    (sleep-for 20) ;; TODO fix this
+    (browse-url-xdg-open outlook-auth-url)
+    (sleep-for 90) ;; TODO fix this
     (ws-stop-all)
     (org-outlook-auth-token)
     ))
@@ -170,7 +179,7 @@
 	 (auth_code (or refresh_token
 			(progn
 			  (org-outlook-request-authorization)
-			  (org-outlook-auth-token)
+    			  (org-outlook-auth-token)
 			  )
 			)))
     (message auth_code)
