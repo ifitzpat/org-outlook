@@ -42,6 +42,7 @@
 (defvar org-outlook-token-cache-file "~/.cache/outlook.plist" "Path to a plist file to keep the encrypted secret tokens")
 (defvar org-outlook-sync-start 14 "How many days 'in the past' should be synced?")
 (defvar org-outlook-sync-end 90 "How many days 'in the future' should be synced?")
+(defvar org-outlook-file "~/.emacs.d/outlook.org")
 
 (defvar org-outlook-client-id "3df0b076-dc9c-48f8-b940-a271ed0bb14b" "Microsoft Entra App Registration Client ID. You can use the default or provide your own if you prefer (see README.org for details)")
 (defvar org-outlook-tenant-id "organizations" "If you provide your own App Registration you can optionally set this to only your outlook tenant (see README.org for details).")
