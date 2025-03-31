@@ -4,7 +4,7 @@
 
 ;; Author: Ian FitzPatrick ian@ianfitzpatrick.eu
 ;; URL: github.com/ifitzpat/org-outlook
-;; Version: 0.0.2
+;; Version: 0.0.3
 ;; Package-Requires: ((emacs "27.1"))
 ;; Keywords: calendar outlook org-mode
 
@@ -38,7 +38,7 @@
 (defconst org-outlook-events-url "https://graph.microsoft.com/v1.0/me/calendarview")
 (defconst org-outlook-events-create-url "https://graph.microsoft.com/v1.0/me/calendar/events")
 
-(defvar org-outlook-local-timezone "Central European Standard Time" "Your timezone")
+(defvar org-outlook-local-timezone "Europe/Berlin" "Your timezone")
 (defvar org-outlook-token-cache-file "~/.cache/outlook.plist" "Path to a plist file to keep the encrypted secret tokens")
 (defvar org-outlook-sync-start 14 "How many days 'in the past' should be synced?")
 (defvar org-outlook-sync-end 90 "How many days 'in the future' should be synced?")
@@ -281,13 +281,14 @@
 
 (add-to-list 'thing-at-point-uri-schemes "msteams://")
 
+;; This treats the timestampt as a UTC timestamp (which it technically isn't)
 (defun org-outlook-timestamp-to-list (timestamp)
   (let ((timetuple (parse-iso8601-time-string (concat timestamp "+00"))))
-    (list (string-to-number (format-time-string "%Y" timetuple (current-time-zone)))
-	  (string-to-number (format-time-string "%m" timetuple (current-time-zone)))
-	  (string-to-number (format-time-string "%d" timetuple (current-time-zone)))
-	  (string-to-number (format-time-string "%H" timetuple (current-time-zone)))
-	  (string-to-number (format-time-string "%M" timetuple (current-time-zone))))))
+    (list (string-to-number (format-time-string "%Y" timetuple t))
+	  (string-to-number (format-time-string "%m" timetuple t))
+	  (string-to-number (format-time-string "%d" timetuple t))
+	  (string-to-number (format-time-string "%H" timetuple t))
+	  (string-to-number (format-time-string "%M" timetuple t)))))
 
 (defun org-outlook-convert-html-body (html)
   (with-temp-buffer
@@ -567,7 +568,8 @@
       :params `(("startdatetime" . ,(concat (org-outlook-start) "T00:00:00.000Z" )) ("enddatetime" . ,(concat (org-outlook-end) "T23:59:59.000Z" )) ("$skip" . ,next))
       :type "GET"
       :sync t
-      :headers `(("Authorization" . ,(concat "Bearer " (org-outlook-bearer-token))))
+      :headers `(("Authorization" . ,(concat "Bearer " (org-outlook-bearer-token)))
+ 		 ("Prefer" . ,(format "outlook.timezone=\"%s\"" org-outlook-local-timezone)))
       :parser 'json-read
       :error (cl-function
 	      (lambda (&rest args &key error-thrown &allow-other-keys)

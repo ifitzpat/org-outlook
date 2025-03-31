@@ -95,7 +95,7 @@ Installing with [[https://framagit.org/steckerhalter/quelpa][Quelpa]] is easy:
   ;(setq org-outlook-client-id "client-id-of-your-registered-app") ;; OPTIONAL
   ;(setq org-outlook-tenant-id "your-azure-tenant-id") ;; OPTIONAL
   (setq org-outlook-gpg-recipient "you@example.com")
-  (setq org-outlook-local-timezone "Central European Standard Time") ; Your local time zone
+  (setq org-outlook-local-timezone "Europe/Berlin") ; Your local time zone
   (setq org-outlook-file "/path/to/outlook.org")
   (setq org-outlook-sync-start 14) ; number of days in the past to keep in sync
   (setq org-outlook-sync-end 90) ; number of days in the future to keep in sync
@@ -140,6 +140,10 @@ Installing with [[https://framagit.org/steckerhalter/quelpa][Quelpa]] is easy:
 
 /Note:/ Breaking changes may be made before version 1.0, but in the event of major changes, attempts at backward compatibility will be made with obsolescence declarations, translation of arguments, etc.  Users who need stability guarantees before 1.0 may choose to use tagged stable releases.
 
+** 0.0.3-alpha
+
+Potential fix for duplicate event creation when going to/from DST
+
 ** 0.0.2-pre-alpha
 
 Switch to PKCE oauth flow & provide default auth client
@@ -155,7 +159,8 @@ Initial release
 
 ** Known issues
 
- - Winter-to-summer time switching may cause duplicate events to appear.
+ - Winter-to-summer time switching may cause duplicate events to appear. /Possible fixed as of
+   0.0.3/
  - Events that are rescheduled sometimes show up twice.
  - Accepting an event doesn't change the event status from =REQUEST= to =MEETING= until the
    next sync.
