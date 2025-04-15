@@ -140,6 +140,10 @@ Installing with [[https://framagit.org/steckerhalter/quelpa][Quelpa]] is easy:
 
 /Note:/ Breaking changes may be made before version 1.0, but in the event of major changes, attempts at backward compatibility will be made with obsolescence declarations, translation of arguments, etc.  Users who need stability guarantees before 1.0 may choose to use tagged stable releases.
 
+** 0.0.4-alpha
+
+Fix hashing of PKCE code
+
 ** 0.0.3-alpha
 
 Potential fix for duplicate event creation when going to/from DST

@@ -4,7 +4,7 @@
 
 ;; Author: Ian FitzPatrick ian@ianfitzpatrick.eu
 ;; URL: github.com/ifitzpat/org-outlook
-;; Version: 0.0.3
+;; Version: 0.0.4
 ;; Package-Requires: ((emacs "27.1"))
 ;; Keywords: calendar outlook org-mode
 
@@ -59,8 +59,8 @@
     result))
 
 (setq org-outlook-code-verifier (org-outlook-generate-random-string 43))
-;(setq org-outlook-code-challenge (base64url-encode-string (secure-hash 'sha256 org-outlook-code-verifier))) ;; FIXME
-(setq org-outlook-code-challenge org-outlook-code-verifier)
+(setq org-outlook-code-challenge (base64url-encode-string (secure-hash 'sha256 org-outlook-code-verifier nil nil t)))
+;(setq org-outlook-code-challenge org-outlook-code-verifier)
 
 ;;
 (defun n-days-ago (&optional n)
@@ -141,7 +141,7 @@
                   "?client_id=" (url-hexify-string org-outlook-client-id)
                   "&response_type=code"
 		  "&code_challenge=" org-outlook-code-challenge
-		  "&code_challenge_method=plain"
+		  "&code_challenge_method=S256"
                   "&redirect_uri=" (url-hexify-string "http://localhost:9004")
                   "&scope=" (url-hexify-string (concat "offline_access " org-outlook-resource-url )))))
 
