@@ -71,9 +71,10 @@
      (string-to-number (format-time-string "%d" timestamp))
      (string-to-number (format-time-string "%Y" timestamp)))))
 
-(defun token-timed-out ()
-  (let* ((org-outlook-token-cache (plstore-open (expand-file-name org-outlook-token-cache-file)))
-	 (auth-timestamp (plist-get (cdr (plstore-get org-outlook-token-cache "access")) :timestamp)))
+(defun token-timed-out (&optional token)
+  (let* ((token (or token "access"))
+	 (org-outlook-token-cache (plstore-open (expand-file-name org-outlook-token-cache-file)))
+	 (auth-timestamp (plist-get (cdr (plstore-get org-outlook-token-cache token)) :timestamp)))
     (plstore-close org-outlook-token-cache)
     (if auth-timestamp
 	(time-less-p (time-add (parse-iso8601-time-string auth-timestamp) (seconds-to-time 3599))  (current-time))
@@ -149,8 +150,13 @@
     (sleep-for 20) ;; TODO fix this
     (browse-url-xdg-open outlook-auth-url)
     (sleep-for 90) ;; TODO fix this
+    ;; (while (not (boundp 'org-outlook--auth-code))
+    ;;   (message "waiting for code...")
+    ;;   )
+
     (ws-stop-all)
     (org-outlook-auth-token)
+    ;org-outlook--auth-code
     ))
 
 (defun org-outlook-auth-token ()
@@ -172,7 +178,7 @@
       ((org-outlook-token-cache (plstore-open (expand-file-name org-outlook-token-cache-file)))
        (token (plist-get (cdr (plstore-get org-outlook-token-cache "refresh")) :refresh)))
     (plstore-close org-outlook-token-cache)
-    token))
+    (or (token-timed-out "refresh") token)))
 
 
 (defun org-outlook-request-access-token ()
@@ -203,7 +209,7 @@
 		(lambda (&key data &allow-other-keys)
 		  (when data
 		    (org-outlook-set-token-field "access" `(:timestamp ,(format-time-string "%Y-%m-%dT%H:%M:%S" (current-time))) `(:access ,(assoc-default 'access_token data)))
-		    (org-outlook-set-token-field "refresh" nil `(:refresh ,(assoc-default 'refresh_token data)))
+		    (org-outlook-set-token-field "refresh" `(:timestamp ,(format-time-string "%Y-%m-%dT%H:%M:%S" (current-time))) `(:refresh ,(assoc-default 'refresh_token data)))
 		    )))
       :error (cl-function
 	      (lambda (&rest args &key error-thrown &allow-other-keys)
