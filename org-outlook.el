@@ -178,7 +178,7 @@
       ((org-outlook-token-cache (plstore-open (expand-file-name org-outlook-token-cache-file)))
        (token (plist-get (cdr (plstore-get org-outlook-token-cache "refresh")) :refresh)))
     (plstore-close org-outlook-token-cache)
-    (or (token-timed-out "refresh") token)))
+    (or (not (token-timed-out "refresh")) token)))
 
 
 (defun org-outlook-request-access-token ()
@@ -186,7 +186,8 @@
 	 (auth_code (or refresh_token
 			(progn
 			  (org-outlook-request-authorization)
-    			  (org-outlook-auth-token)
+			  ;(message "retrieved auth token")
+    			  ;(org-outlook-auth-token)
 			  )
 			)))
     (message auth_code)
