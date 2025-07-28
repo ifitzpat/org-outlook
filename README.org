@@ -3,7 +3,7 @@
 
 Conquer your Microsoft Outlook agenda from the comfort of Emacs.
 
-*Disclaimer:* org-outlook is currently in pre-alpha. Updates & responses to issues will be sporadic.
+*Disclaimer:* org-outlook is currently in beta. Updates & responses to issues will be sporadic.
 
 * Contents
 :PROPERTIES:
@@ -20,12 +20,19 @@ Conquer your Microsoft Outlook agenda from the comfort of Emacs.
 
 * Features
 
++ *Intelligent Hybrid Sync*
+  - Fast delta sync for daily use (only syncs changes)
+  - Automatic full sync for validation (weekly by default)
+  - Handles new, updated, and deleted events automatically
+  - Self-healing with automatic error recovery
 + *Integrated with* [[https://github.com/org-roam][org-roam]]
   - Find outlook events with =org-roam-node-find=
-  - Refile outlook events to any file within =org-roam-directory=  
+  - Refile outlook events to any file within =org-roam-directory=
+  - Each recurring event instance has unique ID for individual refiling
 + *Accept and Decline meeting requests from the agenda buffer*
 + *Join Teams calls directly from the agenda buffer* (launches Teams or web browser)
 + *At-a-glance overview of your appointments and fee timeslots when used with* [[https://github.com/ichernyshovvv/org-timeblock][org-timeblock]]
++ *Robust OAuth flow* with non-blocking authentication and proper error handling
 
 /Planned features & improvements:/
 
@@ -92,13 +99,23 @@ Installing with [[https://framagit.org/steckerhalter/quelpa][Quelpa]] is easy:
 (use-package org-outlook
   :quelpa (org-outlook :fetcher github :repo "ifitzpat/org-outlook")
   :config
-  ;(setq org-outlook-client-id "client-id-of-your-registered-app") ;; OPTIONAL
-  ;(setq org-outlook-tenant-id "your-azure-tenant-id") ;; OPTIONAL
+  ;; Optional: Use your own Microsoft Entra App Registration
+  ;(setq org-outlook-client-id "client-id-of-your-registered-app")
+  ;(setq org-outlook-tenant-id "your-azure-tenant-id")
+
+  ;; Required settings
   (setq org-outlook-gpg-recipient "you@example.com")
   (setq org-outlook-local-timezone "Europe/Berlin") ; Your local time zone
   (setq org-outlook-file "/path/to/outlook.org")
-  (setq org-outlook-sync-start 14) ; number of days in the past to keep in sync
-  (setq org-outlook-sync-end 90) ; number of days in the future to keep in sync
+
+  ;; Sync range (number of days)
+  (setq org-outlook-sync-start 14)  ; days in the past to keep in sync
+  (setq org-outlook-sync-end 90)    ; days in the future to keep in sync
+
+  ;; Optional: Customize full sync frequency (default: 7 days)
+  (setq org-outlook-full-sync-interval-days 7)  ; weekly validation
+  ;(setq org-outlook-full-sync-interval-days 14) ; bi-weekly validation
+  ;(setq org-outlook-full-sync-interval-days nil) ; disable automatic full syncs
   )
 #+END_SRC
 
@@ -119,11 +136,21 @@ Installing with [[https://framagit.org/steckerhalter/quelpa][Quelpa]] is easy:
 :END:
 
 +  *Syncing Outlook events:*
-     -  =org-outlook-sync=
+     -  =M-x org-outlook-sync= - Intelligent sync (uses delta sync when possible, falls back to full sync as needed)
+     -  =C-u M-x org-outlook-sync= - Force full sync (syncs all events regardless)
+     -  =M-x org-outlook-full-sync= - Direct full sync
+
+     *How sync works:*
+     - *First run*: Automatically performs full sync and initializes delta tracking
+     - *Daily use*: Fast delta sync (only processes changes since last sync)
+     - *Weekly*: Automatic full sync for validation (configurable with =org-outlook-full-sync-interval-days=)
+     - *Error recovery*: Falls back to full sync if delta sync fails
+     - *Deleted events*: Automatically removed during delta sync
+
 +  *Accepting a meeting request:*
-     - With point on the entry in the agenda view or within the org entry body: =org-outlook-accept-event= 
+     - With point on the entry in the agenda view or within the org entry body: =org-outlook-accept-event=
 +  *Declining a meeting request:*
-     - With point on the entry in the agenda view or within the org entry body: =org-outlook-decline-event= 
+     - With point on the entry in the agenda view or within the org entry body: =org-outlook-decline-event=
 +  *Joining a Teams meeting:*
      - With point on the entry in the agenda view or within the org entry body: =org-outlook-join-teams-call= 
 
@@ -139,6 +166,44 @@ Installing with [[https://framagit.org/steckerhalter/quelpa][Quelpa]] is easy:
 :END:
 
 /Note:/ Breaking changes may be made before version 1.0, but in the event of major changes, attempts at backward compatibility will be made with obsolescence declarations, translation of arguments, etc.  Users who need stability guarantees before 1.0 may choose to use tagged stable releases.
+
+** 0.1.0-beta (2025-11-20)
+
+Major stability and reliability improvements:
+
+*** Fixed Issues
++ *Issue #1 - DST Duplicates*: Fixed duplicate events during daylight saving time transitions
+  - Event IDs now use Outlook ID directly (stable across DST changes)
+  - Fixed timestamp parsing to handle local timezone correctly
+  - Added error handling for stale org-id cache
+  - Each recurring event instance has unique, stable ID
++ *Issue #2 - Refresh Token*: Fixed reversed logic that prevented automatic OAuth flow when refresh token expired
++ *Issue #3 - Auth Code Race Conditions*: Removed blocking sleeps and race conditions from OAuth flow
+  - Non-blocking authentication with 5-minute timeout (up from 90 seconds)
+  - Proper async handling with state tracking
+  - Better user feedback and error messages
++ *Issue #4 - Deleted Meetings*: Implemented intelligent hybrid sync
+  - Delta sync for fast daily syncs
+  - Automatic full sync for periodic validation
+  - Handles deleted and cancelled events properly
+  - Self-healing with automatic error recovery
+
+*** New Features
++ Intelligent hybrid sync system (=org-outlook-sync=)
+  - Fast delta sync by default
+  - Weekly full sync validation (configurable)
+  - Automatic fallback on errors
++ New configuration variable: =org-outlook-full-sync-interval-days=
++ Force full sync with prefix argument: =C-u M-x org-outlook-sync=
+
+*** Breaking Changes
++ =org-outlook-sync= behavior changed: now uses delta sync by default (was full sync)
++ Old full sync is now =org-outlook-full-sync=
++ Event IDs changed (will cause re-sync on first run)
+
+** 0.0.5-alpha
+
+Fix issue where request token times out
 
 ** 0.0.4-alpha
 
@@ -163,11 +228,15 @@ Initial release
 
 ** Known issues
 
- - Winter-to-summer time switching may cause duplicate events to appear. /Possible fixed as of
-   0.0.3/
- - Events that are rescheduled sometimes show up twice.
  - Accepting an event doesn't change the event status from =REQUEST= to =MEETING= until the
    next sync.
+
+** Fixed in 0.0.6-alpha
+
+ - ✅ DST duplicate events (fixed in 0.0.6)
+ - ✅ Refresh token timeout handling (fixed in 0.0.6)
+ - ✅ OAuth authentication race conditions (fixed in 0.0.6)
+ - ✅ Deleted meetings not removed from org mode (fixed in 0.0.6)
 
 * License
 :PROPERTIES:
