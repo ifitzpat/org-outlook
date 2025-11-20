@@ -20,11 +20,6 @@ Conquer your Microsoft Outlook agenda from the comfort of Emacs.
 
 * Features
 
-+ *Intelligent Hybrid Sync*
-  - Fast delta sync for daily use (only syncs changes)
-  - Automatic full sync for validation (weekly by default)
-  - Handles new, updated, and deleted events automatically
-  - Self-healing with automatic error recovery
 + *Integrated with* [[https://github.com/org-roam][org-roam]]
   - Find outlook events with =org-roam-node-find=
   - Refile outlook events to any file within =org-roam-directory=
@@ -32,7 +27,6 @@ Conquer your Microsoft Outlook agenda from the comfort of Emacs.
 + *Accept and Decline meeting requests from the agenda buffer*
 + *Join Teams calls directly from the agenda buffer* (launches Teams or web browser)
 + *At-a-glance overview of your appointments and fee timeslots when used with* [[https://github.com/ichernyshovvv/org-timeblock][org-timeblock]]
-+ *Robust OAuth flow* with non-blocking authentication and proper error handling
 
 /Planned features & improvements:/
 

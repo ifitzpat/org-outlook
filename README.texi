@@ -97,18 +97,6 @@ Notes
 
 @itemize
 @item
-@strong{Intelligent Hybrid Sync}
-@itemize
-@item
-Fast delta sync for daily use (only syncs changes)
-@item
-Automatic full sync for validation (weekly by default)
-@item
-Handles new, updated, and deleted events automatically
-@item
-Self-healing with automatic error recovery
-@end itemize
-@item
 @strong{Integrated with} @uref{https://github.com/org-roam, org-roam}
 @itemize
 @item
@@ -124,8 +112,6 @@ Each recurring event instance has unique ID for individual refiling
 @strong{Join Teams calls directly from the agenda buffer} (launches Teams or web browser)
 @item
 @strong{At-a-glance overview of your appointments and fee timeslots when used with} @uref{https://github.com/ichernyshovvv/org-timeblock, org-timeblock}
-@item
-@strong{Robust OAuth flow} with non-blocking authentication and proper error handling
 @end itemize
 
 @emph{Planned features & improvements:}
