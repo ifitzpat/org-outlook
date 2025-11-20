@@ -27,7 +27,7 @@ Conquer your Microsoft Outlook agenda from the comfort of Emacs.
 + *Accept and Decline meeting requests from the agenda buffer*
 + *Join Teams calls directly from the agenda buffer* (launches Teams or web browser)
 + *At-a-glance overview of your appointments and fee timeslots when used with* [[https://github.com/ichernyshovvv/org-timeblock][org-timeblock]]
-+ Org *capture template* to quickly plan meetings.
++ Org *capture template* to quickly plan meetings (needs testing).
 
 /Planned features & improvements:/
 

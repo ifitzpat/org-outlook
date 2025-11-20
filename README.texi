@@ -113,7 +113,7 @@ Each recurring event instance has unique ID for individual refiling
 @item
 @strong{At-a-glance overview of your appointments and fee timeslots when used with} @uref{https://github.com/ichernyshovvv/org-timeblock, org-timeblock}
 @item
-Org @strong{capture template} to quickly plan meetings.
+Org @strong{capture template} to quickly plan meetings (needs testing).
 @end itemize
 
 @emph{Planned features & improvements:}
