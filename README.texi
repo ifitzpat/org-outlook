@@ -75,7 +75,7 @@ Changelog
 Notes
 
 * Known issues::
-* Fixed in 0.0.6-alpha: Fixed in 006-alpha. 
+* Fixed in 0.1.0-beta: Fixed in 010-beta. 
 
 @end detailmenu
 @end menu
@@ -133,8 +133,6 @@ Each recurring event instance has unique ID for individual refiling
 @itemize
 @item
 Reduce the number of dependencies
-@item
-Provide a universal App Registration  
 @item
 More configurability  
 @item
@@ -447,7 +445,7 @@ Initial release
 
 @menu
 * Known issues::
-* Fixed in 0.0.6-alpha: Fixed in 006-alpha. 
+* Fixed in 0.1.0-beta: Fixed in 010-beta. 
 @end menu
 
 @node Known issues
@@ -459,18 +457,18 @@ Accepting an event doesn't change the event status from @samp{REQUEST} to @samp{
 next sync.
 @end itemize
 
-@node Fixed in 006-alpha
-@section Fixed in 0.0.6-alpha
+@node Fixed in 010-beta
+@section Fixed in 0.1.0-beta
 
 @itemize
 @item
-✅ DST duplicate events (fixed in 0.0.6)
+✅ DST duplicate events (fixed in 0.1.0)
 @item
-✅ Refresh token timeout handling (fixed in 0.0.6)
+✅ Refresh token timeout handling (fixed in 0.1.0)
 @item
-✅ OAuth authentication race conditions (fixed in 0.0.6)
+✅ OAuth authentication race conditions (fixed in 0.1.0)
 @item
-✅ Deleted meetings not removed from org mode (fixed in 0.0.6)
+✅ Deleted meetings not removed from org mode (fixed in 0.1.0)
 @end itemize
 
 @node License

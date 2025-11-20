@@ -37,7 +37,6 @@ Conquer your Microsoft Outlook agenda from the comfort of Emacs.
 /Planned features & improvements:/
 
 + Reduce the number of dependencies
-+ Provide a universal App Registration  
 + More configurability  
 + Two-way sync of event body (owned events only).
 + Org capture template to quickly plan meetings.
@@ -231,12 +230,12 @@ Initial release
  - Accepting an event doesn't change the event status from =REQUEST= to =MEETING= until the
    next sync.
 
-** Fixed in 0.0.6-alpha
+** Fixed in 0.1.0-beta
 
- - ✅ DST duplicate events (fixed in 0.0.6)
- - ✅ Refresh token timeout handling (fixed in 0.0.6)
- - ✅ OAuth authentication race conditions (fixed in 0.0.6)
- - ✅ Deleted meetings not removed from org mode (fixed in 0.0.6)
+ - ✅ DST duplicate events (fixed in 0.1.0)
+ - ✅ Refresh token timeout handling (fixed in 0.1.0)
+ - ✅ OAuth authentication race conditions (fixed in 0.1.0)
+ - ✅ Deleted meetings not removed from org mode (fixed in 0.1.0)
 
 * License
 :PROPERTIES:
