@@ -112,6 +112,8 @@ Each recurring event instance has unique ID for individual refiling
 @strong{Join Teams calls directly from the agenda buffer} (launches Teams or web browser)
 @item
 @strong{At-a-glance overview of your appointments and fee timeslots when used with} @uref{https://github.com/ichernyshovvv/org-timeblock, org-timeblock}
+@item
+Org @strong{capture template} to quickly plan meetings.
 @end itemize
 
 @emph{Planned features & improvements:}
@@ -123,8 +125,6 @@ Reduce the number of dependencies
 More configurability  
 @item
 Two-way sync of event body (owned events only).
-@item
-Org capture template to quickly plan meetings.
 @end itemize
 
 @emph{Future:}
