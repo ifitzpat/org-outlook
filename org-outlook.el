@@ -4,7 +4,7 @@
 
 ;; Author: Ian FitzPatrick ian@ianfitzpatrick.eu
 ;; URL: github.com/ifitzpat/org-outlook
-;; Version: 0.0.5
+;; Version: 0.1.0
 ;; Package-Requires: ((emacs "27.1"))
 ;; Keywords: calendar outlook org-mode
 
