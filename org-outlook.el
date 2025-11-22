@@ -178,7 +178,10 @@ Returns the authorization code on success."
                            (error "OAuth authorization timed out after 5 minutes")))))
 
     ;; Open browser (non-blocking)
-    (browse-url-xdg-open outlook-auth-url)
+    (if (eq system-type 'gnu/linux)
+	(browse-url-xdg-open outlook-auth-url)
+        (browse-url outlook-auth-url))
+
     (message "Please complete authentication in your browser (you have 5 minutes)...")
 
     ;; Wait for completion with non-blocking checks
