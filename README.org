@@ -59,7 +59,6 @@ applications. In this case, unfortunately, you won't be able to use =org-outlook
  - [[https://www.gnupg.org/][gnupg]]: org-outlook requires you to have a public/private gpg keypair capable of encryption
  - [[http://github.com/lujun9972/html2org.el][html2org]]
  - [[https://github.com/ndwarshuis/org-ml][org-ml]]
- - [[https://github.com/org-roam][org-roam]]
  - [[https://github.com/jeremy-compostella/org-msg][org-msg]]  
  - [[https://github.com/tkf/emacs-request/tree/master][emacs-request]]  
  - [[https://github.com/hniksic/emacs-htmlize][htmlize]]

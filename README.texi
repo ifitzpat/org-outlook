@@ -57,9 +57,6 @@ Usage
 Changelog
 
 * 0.1.0-beta (2025-11-20): 010-beta (2025-11-20). 
-* Fixed Issues::
-* New Features::
-* Breaking Changes::
 * 0.0.5-alpha: 005-alpha. 
 * 0.0.4-alpha: 004-alpha. 
 * 0.0.3-alpha: 003-alpha. 
@@ -166,8 +163,6 @@ applications. In this case, unfortunately, you won't be able to use @samp{org-ou
 @uref{http://github.com/lujun9972/html2org.el, html2org}
 @item
 @uref{https://github.com/ndwarshuis/org-ml, org-ml}
-@item
-@uref{https://github.com/org-roam, org-roam}
 @item
 @uref{https://github.com/jeremy-compostella/org-msg, org-msg}  
 @item
@@ -306,9 +301,6 @@ Calling @samp{org-outlook-sync} via @samp{emacs --batch} avoids blocking your ma
 
 @menu
 * 0.1.0-beta (2025-11-20): 010-beta (2025-11-20). 
-* Fixed Issues::
-* New Features::
-* Breaking Changes::
 * 0.0.5-alpha: 005-alpha. 
 * 0.0.4-alpha: 004-alpha. 
 * 0.0.3-alpha: 003-alpha. 
@@ -328,7 +320,7 @@ Major stability and reliability improvements:
 @end menu
 
 @node Fixed Issues
-@section Fixed Issues
+@subsection Fixed Issues
 
 @itemize
 @item
@@ -370,7 +362,7 @@ Self-healing with automatic error recovery
 @end itemize
 
 @node New Features
-@section New Features
+@subsection New Features
 
 @itemize
 @item
@@ -390,7 +382,7 @@ Force full sync with prefix argument: @samp{C-u M-x org-outlook-sync}
 @end itemize
 
 @node Breaking Changes
-@section Breaking Changes
+@subsection Breaking Changes
 
 @itemize
 @item
