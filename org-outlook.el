@@ -272,6 +272,11 @@ Returns the authorization code on success."
 			  (org-ml-headline-set-node-property "ID" id hl))))))
 
 (defun org-outlook-get-appointment-property (prop)
+  ;; (message "org-outlook-get-appointment-property called in buffer: %s, mode: %s"
+  ;;          (buffer-name) major-mode)
+  (unless (derived-mode-p 'org-mode)
+    (message "Switching to org-mode in buffer: %s" (buffer-name))
+    (let ((org-inhibit-startup t)) (org-mode)))
   (let ((elm (org-ml-parse-element-at (point))))
     (setq mytest elm)
     (->>
@@ -340,6 +345,7 @@ so we parse them as-is without forcing UTC conversion."
 (defun org-outlook-convert-html-body (html)
   (with-temp-buffer
     (insert html)
+    (let ((org-inhibit-startup t)) (org-mode))
     (call-interactively 'html2org)
     (buffer-substring-no-properties (point-min) (point-max))))
 (defun attendee-list (attendees &optional responsefilter)
@@ -587,11 +593,13 @@ otherwise falls back to HTTPS URL for browser-based Teams."
 	 (pos (cdr location))
 	 )
     (with-current-buffer (or (get-file-buffer file)(find-file-noselect file))
+      (unless (derived-mode-p 'org-mode)
+        (let ((org-inhibit-startup t)) (org-mode)))
       (goto-char pos)
       (let*
 	  ((element (org-element-at-point))
-	   (begin (plist-get (cadr element) :begin))
-	   (end (plist-get (cadr element) :end)))
+	   (begin (org-element-property :begin element))
+	   (end (org-element-property :end element)))
 	(delete-region begin end)
 	(save-buffer)
 	))))
@@ -677,16 +685,23 @@ otherwise falls back to HTTPS URL for browser-based Teams."
  	 (location (org-id-find id))
 	 (file (car location))
 	 (pos (cdr location)))
+    (message "Processing event: outlook-id=%s, id=%s, pos=%s"
+             (substring outlook-id 0 20) (substring id 0 20) pos)
     (if removed
 	(org-outlook-delete-by-id id)
       (if pos ; the event exists
 	  (with-current-buffer (or (get-file-buffer file)(find-file-noselect file))
+	    (unless (derived-mode-p 'org-mode)
+	      (let ((org-inhibit-startup t)) (org-mode)))
 	    (goto-char pos)
+;	    (message "At position %d in buffer %s (mode: %s)" pos (buffer-name) major-mode)
 	    (let*
 		((element (org-element-at-point))
+;		 (_ (message (format "%s" element)))
 		 (change (org-outlook-get-appointment-property "CHANGEKEY"))
-		 (begin (plist-get (cadr element) :begin))
-		 (end (plist-get (cadr element) :end)))
+		 (begin (org-element-property :begin element))
+		 (end (org-element-property :end element)))
+	     ; (message "Element parsed: begin=%s end=%s" begin end)
 	      ;; Check if we found a valid element with begin/end positions
 	      (if (and begin end (not (string= changekey change)))
 		  (progn
@@ -694,7 +709,9 @@ otherwise falls back to HTTPS URL for browser-based Teams."
 		    (delete-region begin end)
 		    (insert (org-outlook-build-element event))
 		    (insert "\n")
-		    (save-buffer))
+		    (save-buffer)
+		    ;; Refresh org-id cache since file positions changed
+		    (org-id-update-id-locations (list (buffer-file-name))))
 		;; If element is invalid (stale org-id cache), treat as new event
 		(when (not (and begin end))
 		  (message (concat "Stale org-id cache for: " outlook-id " - reinserting"))
@@ -704,11 +721,17 @@ otherwise falls back to HTTPS URL for browser-based Teams."
 		    (insert "\n")
 		    (save-buffer))))))
         (with-current-buffer (or (get-file-buffer org-outlook-file)(find-file-noselect org-outlook-file))
+	  (unless (derived-mode-p 'org-mode)
+	    (let ((org-inhibit-startup t)) (org-mode)))
 	  (message "Inserting new event")
 	  (goto-char (point-max))
+	  (unless (bolp) (insert "\n"))
+	  (when (org-at-heading-p) (outline-next-heading))
 	  (insert (org-outlook-build-element event))
 	  (insert "\n")
-	  (save-buffer))))))
+	  (save-buffer)
+	  ;; Refresh org-id cache since file positions changed
+	  (org-id-update-id-locations (list (buffer-file-name))))))))
 
 
 (defvar org-outlook-full-sync-interval-days 7
