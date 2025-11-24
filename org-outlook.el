@@ -801,7 +801,7 @@ Full sync is slower but ensures no events are missed."
                         (current-time)))
       (message "Periodic full sync (last was %d days ago)"
                        (/ (float-time (time-subtract (current-time) last-full-sync))
-                          86400)))
+                          86400))
       (org-outlook-full-sync)
       (org-outlook-init-delta-link))
 
@@ -813,12 +813,12 @@ Full sync is slower but ensures no events are missed."
         (error
          (message "Delta sync failed: %s - falling back to full sync" err)
          (org-outlook-full-sync)
-         (org-outlook-init-delta-link)))))
-    
+         (org-outlook-init-delta-link))))))
+
     ;; Update org-id cache after any sync operation
     (message "Updating org-id cache...")
     (org-id-update-id-locations (list org-outlook-file))
-    (org-id-locations-save)))
+    (org-id-locations-save))
 
 
 (provide 'org-outlook)
