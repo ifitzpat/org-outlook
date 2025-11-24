@@ -776,6 +776,8 @@ Delta sync is fast and handles:
 
 Full sync is slower but ensures no events are missed."
   (interactive "P")
+  (message "Loading org-id cache...")
+  (org-id-locations-load)
   (let ((delta-link (org-outlook-last-delta))
         (last-full-sync (org-outlook-last-full-sync-time)))
     (cond
@@ -797,7 +799,7 @@ Full sync is slower but ensures no events are missed."
            (time-less-p (time-add last-full-sync
                                   (days-to-time org-outlook-full-sync-interval-days))
                         (current-time)))
-      (message (format "Periodic full sync (last was %d days ago)"
+      (message "Periodic full sync (last was %d days ago)"
                        (/ (float-time (time-subtract (current-time) last-full-sync))
                           86400)))
       (org-outlook-full-sync)
@@ -811,7 +813,12 @@ Full sync is slower but ensures no events are missed."
         (error
          (message "Delta sync failed: %s - falling back to full sync" err)
          (org-outlook-full-sync)
-         (org-outlook-init-delta-link)))))))
+         (org-outlook-init-delta-link)))))
+    
+    ;; Update org-id cache after any sync operation
+    (message "Updating org-id cache...")
+    (org-id-update-id-locations (list org-outlook-file))
+    (org-id-locations-save)))
 
 
 (provide 'org-outlook)
