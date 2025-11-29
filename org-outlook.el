@@ -275,8 +275,7 @@ Returns the authorization code on success."
   ;; (message "org-outlook-get-appointment-property called in buffer: %s, mode: %s"
   ;;          (buffer-name) major-mode)
   (unless (derived-mode-p 'org-mode)
-    (message "Switching to org-mode in buffer: %s" (buffer-name))
-    (let ((org-inhibit-startup t)) (org-mode)))
+    (user-error "This command must be run from an org-mode buffer"))
   (let ((elm (org-ml-parse-element-at (point))))
     (setq mytest elm)
     (->>
@@ -346,8 +345,7 @@ so we parse them as-is without forcing UTC conversion."
   (with-temp-buffer
     (insert html)
     (let ((org-inhibit-startup t)) (org-mode))
-    (call-interactively 'html2org)
-    (buffer-substring-no-properties (point-min) (point-max))))
+    (html2org (current-buffer) (point-min) (point-max) nil)))
 (defun attendee-list (attendees &optional responsefilter)
   (let* ((attendees (append attendees nil))
 	 (selected (-filter (lambda (item)(string= responsefilter (assoc-default 'response (assoc-default 'status item)))) attendees)))
@@ -682,7 +680,7 @@ otherwise falls back to HTTPS URL for browser-based Teams."
 	 (removed (assoc-default '@removed event))
  	 (changekey (assoc-default 'changeKey event))
  	 (id (secure-hash 'sha256 outlook-id))
- 	 (location (org-id-find id))
+ 	 (location (with-temp-buffer (org-id-find id)))
 	 (file (car location))
 	 (pos (cdr location)))
     (message "Processing event: outlook-id=%s, id=%s, pos=%s"
