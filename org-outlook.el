@@ -487,7 +487,7 @@ otherwise falls back to HTTPS URL for browser-based Teams."
   (let* ((elm (org-ml-parse-element-at (point)))
          (invitees-str (org-ml-headline-get-node-property "INVITEES" elm))
          (meeting-time-str (org-ml-headline-get-node-property "MEETING-TIME" elm)))
-    (when (and invitees-str meeting-time-str 
+    (when (and invitees-str meeting-time-str
                (not (string-empty-p invitees-str))
                (not (string-empty-p meeting-time-str)))
       (let* ((invitees (split-string invitees-str))
@@ -505,7 +505,7 @@ otherwise falls back to HTTPS URL for browser-based Teams."
                                       (mapconcat 'identity busy-people ", "))
                               '(?c ?e ?q))))
                   (cond
-                   ((eq choice ?c) 
+                   ((eq choice ?c)
                     (message "Creating meeting despite conflicts..."))
                    ((eq choice ?e)
                     (org-capture-goto-last-stored)
@@ -524,9 +524,9 @@ otherwise falls back to HTTPS URL for browser-based Teams."
       (let ((schedule-id (assoc-default 'scheduleId schedule))
             (schedule-items (append (assoc-default 'scheduleItems schedule) nil)))
         (when (seq-some (lambda (item)
-                          (let ((item-start (parse-iso8601-time-string 
+                          (let ((item-start (parse-iso8601-time-string
                                            (assoc-default 'dateTime (assoc-default 'start item))))
-                                (item-end (parse-iso8601-time-string 
+                                (item-end (parse-iso8601-time-string
                                          (assoc-default 'dateTime (assoc-default 'end item))))
                                 (status (assoc-default 'status item)))
                             ;; Check if item is busy/tentative and overlaps
@@ -905,11 +905,11 @@ Full sync is slower but ensures no events are missed."
 SCHEDULES is a list of email addresses to check.
 START-TIME and END-TIME should be in format \"2019-03-15T09:00:00\".
 AVAILABILITY-INTERVAL is optional (default 30 minutes)."
-  (interactive 
+  (interactive
    (list (split-string (read-string "Email addresses (space separated): "))
          (read-string "Start time (YYYY-MM-DDTHH:MM:SS): ")
          (read-string "End time (YYYY-MM-DDTHH:MM:SS): ")))
-  
+
   (let ((interval (or availability-interval 30)))
     (request-response-data
      (request org-outlook-schedule-url
@@ -930,7 +930,7 @@ AVAILABILITY-INTERVAL is optional (default 30 minutes)."
                    (message "Availability data retrieved successfully")))
        :error (cl-function
                (lambda (&rest args &key error-thrown &allow-other-keys)
-                 (message "Error checking availability: %S" error-thrown))))))))
+                 (message "Error checking availability: %S" error-thrown)))))))
 
 (defun org-outlook-display-availability (data)
   "Display availability data in a readable format."
@@ -944,11 +944,11 @@ AVAILABILITY-INTERVAL is optional (default 30 minutes)."
               (availability-view (assoc-default 'availabilityView schedule))
               (schedule-items (append (assoc-default 'scheduleItems schedule) nil))
               (working-hours (assoc-default 'workingHours schedule)))
-          
+
           (insert (format "📧 %s\n" schedule-id))
           (insert (format "Availability View: %s\n" availability-view))
           (insert "   (0=free, 1=tentative, 2=busy, 3=oof, 4=workingElsewhere)\n\n")
-          
+
           (if schedule-items
               (progn
                 (insert "Schedule Items:\n")
@@ -959,28 +959,28 @@ AVAILABILITY-INTERVAL is optional (default 30 minutes)."
                         (end (assoc-default 'dateTime (assoc-default 'end item)))
                         (location (assoc-default 'location item))
                         (is-private (assoc-default 'isPrivate item)))
-                    (insert (format "  • %s: %s\n" 
+                    (insert (format "  • %s: %s\n"
                                   (upcase status)
                                   (if (and subject (not is-private)) subject "Private/No Subject")))
-                    (insert (format "    Time: %s - %s\n" 
+                    (insert (format "    Time: %s - %s\n"
                                   (org-outlook-format-datetime start)
                                   (org-outlook-format-datetime end)))
                     (when (and location (not is-private))
                       (insert (format "    Location: %s\n" location)))
                     (insert "\n"))))
             (insert "No scheduled items\n\n"))
-          
+
           (when working-hours
             (let ((days (append (assoc-default 'daysOfWeek working-hours) nil))
                   (start-time (assoc-default 'startTime working-hours))
                   (end-time (assoc-default 'endTime working-hours)))
-              (insert (format "Working Hours: %s %s - %s\n" 
+              (insert (format "Working Hours: %s %s - %s\n"
                             (mapconcat 'capitalize days ", ")
                             (substring start-time 0 5)
                             (substring end-time 0 5)))))
-          
+
           (insert "\n" (make-string 50 ?-) "\n\n")))
-      
+
       (goto-char (point-min))
       (display-buffer (current-buffer)))))
 
@@ -1004,9 +1004,9 @@ START-TIME and END-TIME should be in format \"2019-03-15T09:00:00\"."
                    (let ((schedule-items (append (assoc-default 'scheduleItems person-schedule) nil)))
                      ;; Person is available if no busy/tentative items overlap
                      (not (seq-some (lambda (item)
-                                      (let ((item-start (parse-iso8601-time-string 
+                                      (let ((item-start (parse-iso8601-time-string
                                                         (assoc-default 'dateTime (assoc-default 'start item))))
-                                            (item-end (parse-iso8601-time-string 
+                                            (item-end (parse-iso8601-time-string
                                                       (assoc-default 'dateTime (assoc-default 'end item))))
                                             (status (assoc-default 'status item)))
                                         ;; Check if item is busy/tentative and overlaps with our time slot
