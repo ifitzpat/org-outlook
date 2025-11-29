@@ -33,6 +33,7 @@
 (require 'html2org)
 (require 'request)
 (require 'org-msg)
+(require 'thingatpt)
 (require 'plstore)
 (require 'web-server)
 
@@ -45,6 +46,10 @@
 (defvar org-outlook-sync-start 14 "How many days 'in the past' should be synced?")
 (defvar org-outlook-sync-end 90 "How many days 'in the future' should be synced?")
 (defvar org-outlook-file "~/.emacs.d/outlook.org")
+(defvar org-outlook-browser-fn (if (eq system-type 'gnu/linux)
+                                   #'browse-url-xdg-open
+                                 #'browse-url)
+  "Function used to open browser links during OAuth and event navigation.")
 
 (defvar org-outlook-client-id "3df0b076-dc9c-48f8-b940-a271ed0bb14b" "Microsoft Entra App Registration Client ID. You can use the default or provide your own if you prefer (see README.org for details)")
 (defvar org-outlook-tenant-id "organizations" "If you provide your own App Registration you can optionally set this to only your outlook tenant (see README.org for details).")
@@ -63,6 +68,10 @@
 (setq org-outlook-code-verifier (org-outlook-generate-random-string 43))
 (setq org-outlook-code-challenge (substring (base64url-encode-string (secure-hash 'sha256 org-outlook-code-verifier nil nil t)) 0 43))
 ;(setq org-outlook-code-challenge org-outlook-code-verifier)
+
+(defun org-outlook-open-link (url)
+  "Open URL using `org-outlook-browser-fn' when available."
+  (funcall org-outlook-browser-fn url))
 
 ;; OAuth state tracking variables
 (defvar org-outlook--auth-server nil "Web server instance for OAuth.")
@@ -148,18 +157,21 @@
     (plstore-close org-outlook-token-cache)
     ))
 
+(defun org-outlook--build-auth-url ()
+  "Construct the OAuth authorization URL."
+  (concat org-outlook-auth-url
+          "?client_id=" (url-hexify-string org-outlook-client-id)
+          "&response_type=code"
+          "&code_challenge=" org-outlook-code-challenge
+          "&code_challenge_method=S256"
+          "&redirect_uri=" (url-hexify-string "http://localhost:9004")
+          "&scope=" (url-hexify-string (concat "offline_access " org-outlook-resource-url))))
+
 (defun org-outlook-request-authorization ()
   "Request OAuth authorization without blocking Emacs.
 Opens the browser and waits for the callback with a 5-minute timeout.
 Returns the authorization code on success."
-  (let* ((outlook-auth-url
-          (concat org-outlook-auth-url
-                  "?client_id=" (url-hexify-string org-outlook-client-id)
-                  "&response_type=code"
-		  "&code_challenge=" org-outlook-code-challenge
-		  "&code_challenge_method=S256"
-                  "&redirect_uri=" (url-hexify-string "http://localhost:9004")
-                  "&scope=" (url-hexify-string (concat "offline_access " org-outlook-resource-url)))))
+  (let* ((outlook-auth-url (org-outlook--build-auth-url)))
 
     ;; Reset state
     (setq org-outlook--auth-complete nil)
@@ -178,9 +190,7 @@ Returns the authorization code on success."
                            (error "OAuth authorization timed out after 5 minutes")))))
 
     ;; Open browser (non-blocking)
-    (if (eq system-type 'gnu/linux)
-	(browse-url-xdg-open outlook-auth-url)
-        (browse-url outlook-auth-url))
+    (org-outlook-open-link outlook-auth-url)
 
     (message "Please complete authentication in your browser (you have 5 minutes)...")
 
@@ -348,12 +358,22 @@ so we parse them as-is without forcing UTC conversion."
     (html2org (current-buffer) (point-min) (point-max) nil)))
 (defun attendee-list (attendees &optional responsefilter)
   (let* ((attendees (append attendees nil))
-	 (selected (-filter (lambda (item)(string= responsefilter (assoc-default 'response (assoc-default 'status item)))) attendees)))
+         (selected (-filter (lambda (item)(string= responsefilter (assoc-default 'response (assoc-default 'status item)))) attendees)))
     (mapconcat (lambda (item) (concat "\"" (assoc-default 'name (assoc-default 'emailAddress item)) "\"<" (assoc-default 'address (assoc-default 'emailAddress item)) ">" )) selected " ")))
+
+(defun org-outlook--link-paragraphs (url teams)
+  "Return org link paragraphs for URL and TEAMS links.
+Both URLs are kept browser-friendly so org/open operations launch the browser."
+  (let (links)
+    (when (and url (not (string= url "none")))
+      (push (format "[[%s][Open in Outlook]]" url) links))
+    (when (and teams (not (string= teams "none")))
+      (push (format "[[%s][Join Teams meeting]]" teams) links))
+    (nreverse links)))
 
 (defun org-outlook-build-element (event)
   (let* ((title (assoc-default 'subject event))
-	 (start (org-outlook-timestamp-to-list (assoc-default 'dateTime (assoc-default 'start event))))
+         (start (org-outlook-timestamp-to-list (assoc-default 'dateTime (assoc-default 'start event))))
 	 (end (org-outlook-timestamp-to-list (assoc-default 'dateTime (assoc-default 'end event))))
 	 (outlook-id (assoc-default 'id event)) ; was 'id
 	 (id (secure-hash 'sha256 outlook-id))
@@ -368,30 +388,33 @@ so we parse them as-is without forcing UTC conversion."
 	 (accepted (attendee-list (assoc-default 'attendees event) "accepted"))
 	 (declined (attendee-list (assoc-default 'attendees event) "decline"))
   	 (changekey (or (assoc-default 'changeKey event) "none"))
-	 (no-response (attendee-list (assoc-default 'attendees event) "none"))
-	 (categories (append (assoc-default 'categories event) nil))
-	 (timestamp (->> (org-ml-build-timestamp! start :active t :end end) (org-ml-to-trimmed-string)) )
-	 (html-body (or (assoc-default 'content (assoc-default 'body event)) "None"))
-         (body (org-outlook-convert-html-body html-body)))
+         (no-response (attendee-list (assoc-default 'attendees event) "none"))
+         (categories (append (assoc-default 'categories event) nil))
+         (timestamp (->> (org-ml-build-timestamp! start :active t :end end) (org-ml-to-trimmed-string)) )
+         (html-body (or (assoc-default 'content (assoc-default 'body event)) "None"))
+         (body (org-outlook-convert-html-body html-body))
+         (link-paragraphs (mapcar #'org-ml-build-paragraph! (org-outlook--link-paragraphs url teams))))
     (if title (->>
-	       (org-ml-build-headline! :level 2 :title-text title :tags categories :todo-keyword todo-state :section-children
-				       (list
-					(org-ml-build-property-drawer!
-       					 `("ID" ,id)
-					 `("OUTLOOK-ID" ,outlook-id)
-					 `("LOCATION" ,location)
-					 `("URL" ,url)
-					 `("ACCEPTED" ,accepted)
-					 `("DECLINED" ,declined)
-					 `("NO-RESPONSE" ,no-response)
-					 `("TEAMSURL" ,teams)
-		           		 `("CHANGEKEY" ,changekey)
-					 ;`("MEETING-TIME" ,timestamp)
-					 )
-                                        (org-ml-build-paragraph! timestamp)
-					(org-ml-build-clock! start :end end)
-					(org-ml-build-paragraph body)))
-	       (org-ml-to-trimmed-string))
+               (org-ml-build-headline! :level 2 :title-text title :tags categories :todo-keyword todo-state :section-children
+                                       (append
+                                        (list
+                                         (org-ml-build-property-drawer!
+                                          `("ID" ,id)
+                                          `("OUTLOOK-ID" ,outlook-id)
+                                          `("LOCATION" ,location)
+                                          `("URL" ,url)
+                                          `("ACCEPTED" ,accepted)
+                                          `("DECLINED" ,declined)
+                                          `("NO-RESPONSE" ,no-response)
+                                          `("TEAMSURL" ,teams)
+                                          `("CHANGEKEY" ,changekey)
+                                          ;`("MEETING-TIME" ,timestamp)
+                                          )
+                                         (org-ml-build-paragraph! timestamp)
+                                         (org-ml-build-clock! start :end end)
+                                         (org-ml-build-paragraph body))
+                                        link-paragraphs))
+               (org-ml-to-trimmed-string))
       "\n")
     ))
 
@@ -437,8 +460,25 @@ otherwise falls back to HTTPS URL for browser-based Teams."
           (message (if use-teams-protocol
                        "Opening Teams meeting in desktop app..."
                      "Opening Teams meeting in browser (Teams app not detected)..."))
-          (browse-url-xdg-open final-url))
+          (org-outlook-open-link final-url))
       (message "No Teams URL found for this event"))))
+
+(defun org-outlook-open-event-link (&optional use-teams)
+  "Open the Outlook web link or Teams link for the current event.
+When USE-TEAMS is non-nil, prefer the Teams join URL. Works from
+both Org buffers and `org-agenda' buffers."
+  (interactive "P")
+  (let* ((lookup (lambda (prop)
+                   (or (org-outlook-get-appointment-property prop)
+                       (org-outlook-get-prop-from-agenda prop))))
+         (teams-url (funcall lookup "TEAMSURL"))
+         (web-url (funcall lookup "URL"))
+         (target (or (and use-teams teams-url)
+                     teams-url
+                     web-url)))
+    (if target
+        (org-outlook-open-link target)
+      (message "No Outlook or Teams link available for this event"))))
 (setq org-outlook-staging-file "~/.cache/outlook-staging.org")
 (with-eval-after-load 'org-capture
   (defun org-outlook-capture-template ()
