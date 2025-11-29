@@ -4,7 +4,7 @@
 
 ;; Author: Ian FitzPatrick ian@ianfitzpatrick.eu
 ;; URL: github.com/ifitzpat/org-outlook
-;; Version: 0.1.1
+;; Version: 0.1.2
 ;; Package-Requires: ((emacs "27.1") (org-ml "6.0.2") (html2org "0.1") (request "0.3.3") (org-msg "4.0") (web-server "0.1.2"))
 ;; Keywords: calendar outlook org-mode
 
@@ -83,10 +83,13 @@
 (defun token-timed-out (&optional token)
   (let* ((token (or token "access"))
 	 (org-outlook-token-cache (plstore-open (expand-file-name org-outlook-token-cache-file)))
-	 (auth-timestamp (plist-get (cdr (plstore-get org-outlook-token-cache token)) :timestamp)))
+	 (auth-timestamp (plist-get (cdr (plstore-get org-outlook-token-cache token)) :timestamp))
+	 (timeout-seconds (if (string= token "refresh")
+			      (* 89 24 60 60)  ; 89 days in seconds
+			    3599)))            ; 1 hour for access tokens
     (plstore-close org-outlook-token-cache)
     (if auth-timestamp
-	(time-less-p (time-add (parse-iso8601-time-string auth-timestamp) (seconds-to-time 3599))  (current-time))
+	(time-less-p (time-add (parse-iso8601-time-string auth-timestamp) (seconds-to-time timeout-seconds))  (current-time))
       nil)))
 
 (defun token-cache-exists ()
@@ -475,45 +478,54 @@ otherwise falls back to HTTPS URL for browser-based Teams."
 	(progn
 	  (goto-char (point-min))
 	  ;; Check availability before creating the event
-	  (org-outlook-check-capture-availability)
-	  (org-outlook-calendar-create-or-update-event)
+	  (when (org-outlook-check-capture-availability)
+	    (org-outlook-calendar-create-or-update-event))
 					; (let ((attachments (org-outlook-get-appointment-property "ATTACHMENTS")))
 					;      (if attachments (mapc attachments #'org-outlook-add-attachment)))
 	  )
       (message "not an outlook event"))))
 
 (defun org-outlook-check-capture-availability ()
-  "Check availability of invitees in current capture and prompt user if conflicts exist."
+  "Check availability of invitees in current capture and prompt user if conflicts exist.
+Returns t to proceed with event creation, nil if user wants to edit."
   (let* ((elm (org-ml-parse-element-at (point)))
          (invitees-str (org-ml-headline-get-node-property "INVITEES" elm))
          (meeting-time-str (org-ml-headline-get-node-property "MEETING-TIME" elm)))
-    (when (and invitees-str meeting-time-str
-               (not (string-empty-p invitees-str))
-               (not (string-empty-p meeting-time-str)))
-      (let* ((invitees (split-string invitees-str))
-             (start-time (org-outlook-start-time-from-timestamp meeting-time-str))
-             (end-time (org-outlook-end-time-from-timestamp meeting-time-str))
-             (all-available (org-outlook-persons-available-p invitees start-time end-time)))
-        (unless all-available
-          ;; Some people are not available - get details and prompt user
-          (let* ((availability-data (org-outlook-check-availability invitees start-time end-time))
-                 (schedules (append (assoc-default 'value availability-data) nil))
-                 (busy-people (org-outlook-get-busy-attendees schedules start-time end-time)))
-            (if busy-people
-                (let ((choice (read-char-choice
-                              (format "⚠️  Some attendees are busy: %s\n\n(c)ontinue anyway, (e)dit capture, (q)uit capture? "
-                                      (mapconcat 'identity busy-people ", "))
-                              '(?c ?e ?q))))
-                  (cond
-                   ((eq choice ?c)
-                    (message "Creating meeting despite conflicts..."))
-                   ((eq choice ?e)
-                    (org-capture-goto-last-stored)
-                    (error "Please edit the capture and try again"))
-                   ((eq choice ?q)
-                    (org-capture-kill)
-                    (error "Capture cancelled"))))
-              (message "✓ All attendees are available"))))))))
+    (if (and invitees-str meeting-time-str
+             (not (string-empty-p invitees-str))
+             (not (string-empty-p meeting-time-str)))
+        (let* ((invitees (split-string invitees-str))
+               (start-time (org-outlook-start-time-from-timestamp meeting-time-str))
+               (end-time (org-outlook-end-time-from-timestamp meeting-time-str))
+               (all-available (org-outlook-persons-available-p invitees start-time end-time)))
+          (if all-available
+              (progn
+                (message "✓ All attendees are available")
+                t)
+            ;; Some people are not available - get details and prompt user
+            (let* ((availability-data (org-outlook-check-availability invitees start-time end-time))
+                   (schedules (append (assoc-default 'value availability-data) nil))
+                   (busy-people (org-outlook-get-busy-attendees schedules start-time end-time)))
+              (if busy-people
+                  (let ((choice (read-char-choice
+                                (format "⚠️  Some attendees are busy: %s\n\n(c)ontinue anyway, (e)dit capture, (q)uit capture? "
+                                        (mapconcat 'identity busy-people ", "))
+                                '(?c ?e ?q))))
+                    (cond
+                     ((eq choice ?c)
+                      (message "Creating meeting despite conflicts...")
+                      t)
+                     ((eq choice ?e)
+                      (message "Please edit and finalize again")
+                      (error "Availability conflicts - please edit and try again"))
+                     ((eq choice ?q)
+                      (org-capture-kill)
+                      (error "Capture cancelled"))))
+                (progn
+                  (message "✓ All attendees are available")
+                  t)))))
+      ;; No invitees or meeting time specified - proceed
+      t)))
 
 (defun org-outlook-get-busy-attendees (schedules start-time end-time)
   "Return list of email addresses that are busy during the specified time slot."
