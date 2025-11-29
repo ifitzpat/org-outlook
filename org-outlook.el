@@ -61,7 +61,7 @@
     result))
 
 (setq org-outlook-code-verifier (org-outlook-generate-random-string 43))
-(setq org-outlook-code-challenge (base64url-encode-string (secure-hash 'sha256 org-outlook-code-verifier nil nil t)))
+(setq org-outlook-code-challenge (substring (base64url-encode-string (secure-hash 'sha256 org-outlook-code-verifier nil nil t)) 0 43))
 ;(setq org-outlook-code-challenge org-outlook-code-verifier)
 
 ;; OAuth state tracking variables

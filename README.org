@@ -26,7 +26,7 @@ Conquer your Microsoft Outlook agenda from the comfort of Emacs.
   - Each recurring event instance has unique ID for individual refiling
 + *Accept and Decline meeting requests from the agenda buffer*
 + *Join Teams calls directly from the agenda buffer* (launches Teams or web browser)
-+ *At-a-glance overview of your appointments and fee timeslots when used with* [[https://github.com/ichernyshovvv/org-timeblock][org-timeblock]]
++ *At-a-glance overview of your appointments and free timeslots when used with* [[https://github.com/ichernyshovvv/org-timeblock][org-timeblock]]
 + Org *capture template* to quickly plan meetings (needs testing).
 
 /Planned features & improvements:/
@@ -158,6 +158,17 @@ Installing with [[https://framagit.org/steckerhalter/quelpa][Quelpa]] is easy:
 :END:
 
 /Note:/ Breaking changes may be made before version 1.0, but in the event of major changes, attempts at backward compatibility will be made with obsolescence declarations, translation of arguments, etc.  Users who need stability guarantees before 1.0 may choose to use tagged stable releases.
+** 0.1.1-beta (2025-11-29)
+
+Major stability and reliability improvements:
+
+*** Fixed Issues
++ *Issue #5 - browser does not launch on MacOS*
++ *Issue #6 -AADSTS501491: Invalid size of Code_Challenge*
+  
+*** Breaking Changes
++ =org-outlook-code-challenge= is now limited to 43 characters
+
 
 ** 0.1.0-beta (2025-11-20)
 
@@ -222,6 +233,11 @@ Initial release
 
  - Accepting an event doesn't change the event status from =REQUEST= to =MEETING= until the
    next sync.
+
+** Fixed in 0.1.0-beta
+
+ - ✅ AADSTS501491: Invalid size of Code_Challenge (fixed in 0.1.1)
+ - ✅ browser does not launch on MacOS (fixed in 0.1.1)
 
 ** Fixed in 0.1.0-beta
 
