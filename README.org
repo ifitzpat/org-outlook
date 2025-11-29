@@ -108,6 +108,9 @@ Installing with [[https://framagit.org/steckerhalter/quelpa][Quelpa]] is easy:
   (setq org-outlook-full-sync-interval-days 7)  ; weekly validation
   ;(setq org-outlook-full-sync-interval-days 14) ; bi-weekly validation
   ;(setq org-outlook-full-sync-interval-days nil) ; disable automatic full syncs
+
+  ;; Optional: Set your email for availability checking functions
+  (setq org-outlook-user-email "your.email@company.com")
   )
 #+END_SRC
 
@@ -146,9 +149,60 @@ Installing with [[https://framagit.org/steckerhalter/quelpa][Quelpa]] is easy:
 +  *Joining a Teams meeting:*
      - With point on the entry in the agenda view or within the org entry body: =org-outlook-join-teams-call= 
 
++  *Creating new meetings with org-capture:*
+     - =C-c c o= - Create new Outlook meeting using org-capture template
+     - The template will prompt for:
+       - Event title
+       - Invitees (space-separated email addresses)
+       - Location
+       - Meeting time (org timestamp format)
+     - Upon finalization (=C-c C-c=), the system automatically:
+       - Checks availability of all invitees
+       - Warns if conflicts exist with options to continue, edit, or cancel
+       - Creates the event in Outlook if proceeding
+
++  *Checking availability:*
+     - =M-x org-outlook-check-availability= - Interactive availability check for multiple people
+     - =org-outlook-persons-available-p= - Programmatic availability check (returns t/nil)
+     - =org-outlook-i-am-available-p= - Check your own availability (requires =org-outlook-user-email= to be set)
+
+     *Example usage:*
+     #+BEGIN_SRC emacs-lisp
+     ;; Set your email for convenience functions
+     (setq org-outlook-user-email "your.email@company.com")
+     
+     ;; Check if you're free for a meeting
+     (org-outlook-i-am-available-p "2025-11-30T14:00:00" "2025-11-30T15:00:00")
+     
+     ;; Check if multiple people are all available
+     (org-outlook-persons-available-p '("person1@company.com" 
+                                       "person2@company.com")
+                                     "2025-11-30T14:00:00" 
+                                     "2025-11-30T15:00:00")
+     
+     ;; Interactive availability report
+     (org-outlook-check-availability '("colleague@company.com") 
+                                    "2025-11-30T09:00:00" 
+                                    "2025-11-30T17:00:00")
+     #+END_SRC
+
 ** Tips
 
 + Calling =org-outlook-sync= via =emacs --batch= avoids blocking your main emacs session.
+
++ *Creating meetings with org-capture workflow:*
+  1. Press =C-c c o= to start the capture template
+  2. Enter event title when prompted
+  3. Fill in the template:
+     - =INVITEES:= Space-separated email addresses (e.g., =john@company.com mary@company.com=)
+     - =LOCATION:= Meeting location or "Teams" for online meetings  
+     - =MEETING-TIME:= Use org timestamp (e.g., =<2025-12-01 Mon 14:00-15:00>=)
+  4. Press =C-c C-c= to finalize
+  5. If conflicts are detected, choose from:
+     - =(c)ontinue anyway= - Proceed despite conflicts
+     - =(e)dit capture= - Return to edit invitees/time
+     - =(q)uit capture= - Cancel the meeting creation
+  6. Meeting is automatically created in Outlook and synced to your org file
 
 
 

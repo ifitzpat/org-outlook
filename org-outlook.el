@@ -39,6 +39,7 @@
 (defconst org-outlook-resource-url "https://graph.microsoft.com/Calendars.ReadWrite")
 (defconst org-outlook-events-url "https://graph.microsoft.com/v1.0/me/calendarview")
 (defconst org-outlook-events-create-url "https://graph.microsoft.com/v1.0/me/calendar/events")
+(defconst org-outlook-schedule-url "https://graph.microsoft.com/v1.0/me/calendar/getSchedule")
 
 (defvar org-outlook-local-timezone "Europe/Berlin" "Your timezone")
 (defvar org-outlook-token-cache-file "~/.cache/outlook.plist" "Path to a plist file to keep the encrypted secret tokens")
@@ -48,6 +49,7 @@
 
 (defvar org-outlook-client-id "3df0b076-dc9c-48f8-b940-a271ed0bb14b" "Microsoft Entra App Registration Client ID. You can use the default or provide your own if you prefer (see README.org for details)")
 (defvar org-outlook-tenant-id "organizations" "If you provide your own App Registration you can optionally set this to only your outlook tenant (see README.org for details).")
+(defvar org-outlook-user-email nil "Your email address for availability checks. Set this to use org-outlook-i-am-available-p.")
 
 (defvar org-outlook-auth-url (format "https://login.microsoftonline.com/%s/oauth2/v2.0/authorize" org-outlook-tenant-id))
 (setq org-outlook-token-url (format "https://login.microsoftonline.com/%s/oauth2/v2.0/token" org-outlook-tenant-id))
@@ -472,11 +474,68 @@ otherwise falls back to HTTPS URL for browser-based Teams."
     (if (re-search-forward "MEETING-TIME" nil t) ; TODO Fix
 	(progn
 	  (goto-char (point-min))
+	  ;; Check availability before creating the event
+	  (org-outlook-check-capture-availability)
 	  (org-outlook-calendar-create-or-update-event)
 					; (let ((attachments (org-outlook-get-appointment-property "ATTACHMENTS")))
 					;      (if attachments (mapc attachments #'org-outlook-add-attachment)))
 	  )
       (message "not an outlook event"))))
+
+(defun org-outlook-check-capture-availability ()
+  "Check availability of invitees in current capture and prompt user if conflicts exist."
+  (let* ((elm (org-ml-parse-element-at (point)))
+         (invitees-str (org-ml-headline-get-node-property "INVITEES" elm))
+         (meeting-time-str (org-ml-headline-get-node-property "MEETING-TIME" elm)))
+    (when (and invitees-str meeting-time-str 
+               (not (string-empty-p invitees-str))
+               (not (string-empty-p meeting-time-str)))
+      (let* ((invitees (split-string invitees-str))
+             (start-time (org-outlook-start-time-from-timestamp meeting-time-str))
+             (end-time (org-outlook-end-time-from-timestamp meeting-time-str))
+             (all-available (org-outlook-persons-available-p invitees start-time end-time)))
+        (unless all-available
+          ;; Some people are not available - get details and prompt user
+          (let* ((availability-data (org-outlook-check-availability invitees start-time end-time))
+                 (schedules (append (assoc-default 'value availability-data) nil))
+                 (busy-people (org-outlook-get-busy-attendees schedules start-time end-time)))
+            (if busy-people
+                (let ((choice (read-char-choice
+                              (format "⚠️  Some attendees are busy: %s\n\n(c)ontinue anyway, (e)dit capture, (q)uit capture? "
+                                      (mapconcat 'identity busy-people ", "))
+                              '(?c ?e ?q))))
+                  (cond
+                   ((eq choice ?c) 
+                    (message "Creating meeting despite conflicts..."))
+                   ((eq choice ?e)
+                    (org-capture-goto-last-stored)
+                    (error "Please edit the capture and try again"))
+                   ((eq choice ?q)
+                    (org-capture-kill)
+                    (error "Capture cancelled"))))
+              (message "✓ All attendees are available"))))))))
+
+(defun org-outlook-get-busy-attendees (schedules start-time end-time)
+  "Return list of email addresses that are busy during the specified time slot."
+  (let ((start-time-obj (parse-iso8601-time-string start-time))
+        (end-time-obj (parse-iso8601-time-string end-time))
+        busy-people)
+    (dolist (schedule schedules)
+      (let ((schedule-id (assoc-default 'scheduleId schedule))
+            (schedule-items (append (assoc-default 'scheduleItems schedule) nil)))
+        (when (seq-some (lambda (item)
+                          (let ((item-start (parse-iso8601-time-string 
+                                           (assoc-default 'dateTime (assoc-default 'start item))))
+                                (item-end (parse-iso8601-time-string 
+                                         (assoc-default 'dateTime (assoc-default 'end item))))
+                                (status (assoc-default 'status item)))
+                            ;; Check if item is busy/tentative and overlaps
+                            (and (member status '("busy" "tentative" "oof"))
+                                 (time-less-p item-start end-time-obj)
+                                 (time-less-p start-time-obj item-end))))
+                        schedule-items)
+          (push schedule-id busy-people))))
+    busy-people))
 
 (defun org-outlook-get-prop-from-agenda (prop)
   (let* ((hdmarker (or (org-get-at-bol 'org-hd-marker)
@@ -840,6 +899,130 @@ Full sync is slower but ensures no events are missed."
     (message "Updating org-id cache...")
     (org-id-update-id-locations (list org-outlook-file))
     (org-id-locations-save))
+
+(defun org-outlook-check-availability (schedules start-time end-time &optional availability-interval)
+  "Check availability for SCHEDULES between START-TIME and END-TIME.
+SCHEDULES is a list of email addresses to check.
+START-TIME and END-TIME should be in format \"2019-03-15T09:00:00\".
+AVAILABILITY-INTERVAL is optional (default 30 minutes)."
+  (interactive 
+   (list (split-string (read-string "Email addresses (space separated): "))
+         (read-string "Start time (YYYY-MM-DDTHH:MM:SS): ")
+         (read-string "End time (YYYY-MM-DDTHH:MM:SS): ")))
+  
+  (let ((interval (or availability-interval 30)))
+    (request-response-data
+     (request org-outlook-schedule-url
+       :type "POST"
+       :sync t
+       :data (json-encode `(("schedules" . ,(vconcat schedules))
+                           ("startTime" . (("dateTime" . ,start-time)
+                                         ("timeZone" . ,org-outlook-local-timezone)))
+                           ("endTime" . (("dateTime" . ,end-time)
+                                       ("timeZone" . ,org-outlook-local-timezone)))
+                           ("availabilityViewInterval" . ,interval)))
+       :headers `(("Authorization" . ,(concat "Bearer " (org-outlook-bearer-token)))
+                 ("Content-Type" . "application/json")
+                 ("Prefer" . ,(format "outlook.timezone=\"%s\"" org-outlook-local-timezone)))
+       :parser 'json-read
+       :success (cl-function
+                 (lambda (&key data &allow-other-keys)
+                   (message "Availability data retrieved successfully")))
+       :error (cl-function
+               (lambda (&rest args &key error-thrown &allow-other-keys)
+                 (message "Error checking availability: %S" error-thrown))))))))
+
+(defun org-outlook-display-availability (data)
+  "Display availability data in a readable format."
+  (let ((schedules (append (assoc-default 'value data) nil))
+        (buffer-name "*Outlook Availability*"))
+    (with-current-buffer (get-buffer-create buffer-name)
+      (erase-buffer)
+      (insert "=== Outlook Availability Report ===\n\n")
+      (dolist (schedule schedules)
+        (let ((schedule-id (assoc-default 'scheduleId schedule))
+              (availability-view (assoc-default 'availabilityView schedule))
+              (schedule-items (append (assoc-default 'scheduleItems schedule) nil))
+              (working-hours (assoc-default 'workingHours schedule)))
+          
+          (insert (format "📧 %s\n" schedule-id))
+          (insert (format "Availability View: %s\n" availability-view))
+          (insert "   (0=free, 1=tentative, 2=busy, 3=oof, 4=workingElsewhere)\n\n")
+          
+          (if schedule-items
+              (progn
+                (insert "Schedule Items:\n")
+                (dolist (item schedule-items)
+                  (let ((status (assoc-default 'status item))
+                        (subject (assoc-default 'subject item))
+                        (start (assoc-default 'dateTime (assoc-default 'start item)))
+                        (end (assoc-default 'dateTime (assoc-default 'end item)))
+                        (location (assoc-default 'location item))
+                        (is-private (assoc-default 'isPrivate item)))
+                    (insert (format "  • %s: %s\n" 
+                                  (upcase status)
+                                  (if (and subject (not is-private)) subject "Private/No Subject")))
+                    (insert (format "    Time: %s - %s\n" 
+                                  (org-outlook-format-datetime start)
+                                  (org-outlook-format-datetime end)))
+                    (when (and location (not is-private))
+                      (insert (format "    Location: %s\n" location)))
+                    (insert "\n"))))
+            (insert "No scheduled items\n\n"))
+          
+          (when working-hours
+            (let ((days (append (assoc-default 'daysOfWeek working-hours) nil))
+                  (start-time (assoc-default 'startTime working-hours))
+                  (end-time (assoc-default 'endTime working-hours)))
+              (insert (format "Working Hours: %s %s - %s\n" 
+                            (mapconcat 'capitalize days ", ")
+                            (substring start-time 0 5)
+                            (substring end-time 0 5)))))
+          
+          (insert "\n" (make-string 50 ?-) "\n\n")))
+      
+      (goto-char (point-min))
+      (display-buffer (current-buffer)))))
+
+(defun org-outlook-format-datetime (datetime-str)
+  "Format datetime string for display using existing time parsing."
+  (let ((time-obj (parse-iso8601-time-string datetime-str)))
+    (format-time-string "%Y-%m-%d %H:%M" time-obj)))
+
+(defun org-outlook-persons-available-p (emails start-time end-time)
+  "Check if EMAILS are available between START-TIME and END-TIME.
+EMAILS can be a single email string or a list of email strings.
+Returns t if ALL are available (free), nil if ANY are busy.
+START-TIME and END-TIME should be in format \"2019-03-15T09:00:00\"."
+  (let* ((email-list (if (listp emails) emails (list emails)))
+         (data (org-outlook-check-availability email-list start-time end-time))
+         (schedules (append (assoc-default 'value data) nil))
+         (start-time-obj (parse-iso8601-time-string start-time))
+         (end-time-obj (parse-iso8601-time-string end-time)))
+    ;; Check if ALL persons are available
+    (seq-every-p (lambda (person-schedule)
+                   (let ((schedule-items (append (assoc-default 'scheduleItems person-schedule) nil)))
+                     ;; Person is available if no busy/tentative items overlap
+                     (not (seq-some (lambda (item)
+                                      (let ((item-start (parse-iso8601-time-string 
+                                                        (assoc-default 'dateTime (assoc-default 'start item))))
+                                            (item-end (parse-iso8601-time-string 
+                                                      (assoc-default 'dateTime (assoc-default 'end item))))
+                                            (status (assoc-default 'status item)))
+                                        ;; Check if item is busy/tentative and overlaps with our time slot
+                                        (and (member status '("busy" "tentative" "oof"))
+                                             (time-less-p item-start end-time-obj)
+                                             (time-less-p start-time-obj item-end))))
+                                    schedule-items))))
+                 schedules)))
+
+(defun org-outlook-i-am-available-p (start-time end-time)
+  "Check if you are available between START-TIME and END-TIME.
+Uses org-outlook-user-email variable. Returns t if available, nil if busy.
+START-TIME and END-TIME should be in format \"2019-03-15T09:00:00\"."
+  (if org-outlook-user-email
+      (org-outlook-persons-available-p org-outlook-user-email start-time end-time)
+    (user-error "Please set org-outlook-user-email first")))
 
 
 (provide 'org-outlook)
