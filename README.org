@@ -163,9 +163,10 @@ Installing with [[https://framagit.org/steckerhalter/quelpa][Quelpa]] is easy:
 Major stability and reliability improvements:
 
 *** Fixed Issues
-+ *Issue #5 - browser does not launch on MacOS*
-+ *Issue #6 -AADSTS501491: Invalid size of Code_Challenge*
-  
++ *Issue #5:* - browser does not launch on MacOS
++ *Issue #6 -AADSTS501491:* Invalid size of Code_Challenge
++ *No issue number:* current-buffer mode change
+
 *** Breaking Changes
 + =org-outlook-code-challenge= is now limited to 43 characters
 
@@ -238,6 +239,7 @@ Initial release
 
  - ✅ AADSTS501491: Invalid size of Code_Challenge (fixed in 0.1.1)
  - ✅ browser does not launch on MacOS (fixed in 0.1.1)
+ - ✅ current-buffer mode change (fixed in 0.1.1)
 
 ** Fixed in 0.1.0-beta
 

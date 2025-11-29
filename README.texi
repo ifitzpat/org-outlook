@@ -331,9 +331,11 @@ Major stability and reliability improvements:
 
 @itemize
 @item
-@strong{Issue #5 - browser does not launch on MacOS}
+@strong{Issue #5:} - browser does not launch on MacOS
 @item
-@strong{Issue #6 -AADSTS501491: Invalid size of Code@math{_Challenge}}
+@strong{Issue #6 -AADSTS501491:} Invalid size of Code@math{_Challenge}
+@item
+@strong{No issue number:} current-buffer mode change
 @end itemize
 
 @node Breaking Changes
@@ -480,6 +482,8 @@ next sync.
 ✅ AADSTS501491: Invalid size of Code@math{_Challenge} (fixed in 0.1.1)
 @item
 ✅ browser does not launch on MacOS (fixed in 0.1.1)
+@item
+✅ current-buffer mode change (fixed in 0.1.1)
 @end itemize
 
 @node Fixed in 010-beta (1)
