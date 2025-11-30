@@ -4,7 +4,7 @@
 
 ;; Author: Ian FitzPatrick ian@ianfitzpatrick.eu
 ;; URL: github.com/ifitzpat/org-outlook
-;; Version: 0.1.2
+;; Version: 0.1.3
 ;; Package-Requires: ((emacs "27.1") (org-ml "6.0.2") (html2org "0.1") (request "0.3.3") (org-msg "4.0") (web-server "0.1.2"))
 ;; Keywords: calendar outlook org-mode
 
@@ -36,10 +36,11 @@
 (require 'plstore)
 (require 'web-server)
 
-(defconst org-outlook-resource-url "https://graph.microsoft.com/Calendars.ReadWrite")
+(defconst org-outlook-resource-url "https://graph.microsoft.com/.default")
 (defconst org-outlook-events-url "https://graph.microsoft.com/v1.0/me/calendarview")
 (defconst org-outlook-events-create-url "https://graph.microsoft.com/v1.0/me/calendar/events")
 (defconst org-outlook-schedule-url "https://graph.microsoft.com/v1.0/me/calendar/getSchedule")
+(defconst org-outlook-teams-meeting-url "https://graph.microsoft.com/v1.0/me/onlineMeetings")
 
 (defvar org-outlook-local-timezone "Europe/Berlin" "Your timezone")
 (defvar org-outlook-token-cache-file "~/.cache/outlook.plist" "Path to a plist file to keep the encrypted secret tokens")
@@ -449,14 +450,18 @@ otherwise falls back to HTTPS URL for browser-based Teams."
   (defun org-outlook-capture-template ()
     "Returns `org-capture' template string for new outlook calendar event.
  See `org-capture-templates' for more information."
-    (let* ((title (read-from-minibuffer "Event title: ")))
+    (let* ((title (read-from-minibuffer "Event title: "))
+           (teams-meeting (y-or-n-p "Include Teams meeting? ")))
       (mapconcat #'identity
                  `(
                    ,(concat "** MEETING " title)
                    ":PROPERTIES:"
 		   ":INVITEES: %^{Space separated invitees: }"
-		   ":LOCATION: %^{Meeting location: }"
+		   ,(if teams-meeting
+		        ":LOCATION: Microsoft Teams Meeting"
+		      ":LOCATION: %^{Meeting location: }")
 		   ":MEETING-TIME: %^{Specify meeting time: }T" ; TODO Fix
+		   ,(if teams-meeting ":TEAMS-MEETING: yes" "")
                    ":END:"
                    "%?\n")          ;Place the cursor here finally
                  "\n")))
@@ -479,6 +484,7 @@ otherwise falls back to HTTPS URL for browser-based Teams."
 	  (goto-char (point-min))
 	  ;; Check availability before creating the event
 	  (when (org-outlook-check-capture-availability)
+	    (org-outlook-handle-teams-meeting-creation)
 	    (org-outlook-calendar-create-or-update-event))
 					; (let ((attachments (org-outlook-get-appointment-property "ATTACHMENTS")))
 					;      (if attachments (mapc attachments #'org-outlook-add-attachment)))
@@ -526,6 +532,33 @@ Returns t to proceed with event creation, nil if user wants to edit."
                   t)))))
       ;; No invitees or meeting time specified - proceed
       t)))
+
+(defun org-outlook-handle-teams-meeting-creation ()
+  "Handle Teams meeting creation during capture if TEAMS-MEETING property is set."
+  (let* ((elm (org-ml-parse-element-at (point)))
+         (teams-meeting (org-ml-headline-get-node-property "TEAMS-MEETING" elm))
+         (title (car (append (org-ml-get-property :title elm) nil)))
+         (meeting-time-str (org-ml-headline-get-node-property "MEETING-TIME" elm)))
+    (when (and teams-meeting (string= teams-meeting "yes") meeting-time-str title)
+      (let* ((start-time-iso (concat (org-outlook-start-time-from-timestamp meeting-time-str) ".0000000"))
+             (end-time-iso (concat (org-outlook-end-time-from-timestamp meeting-time-str) ".0000000"))
+             ;; Convert to ISO 8601 format with timezone
+             (current-time-obj (current-time))
+             (timezone-offset (format-time-string "%z" current-time-obj))
+             ;; Convert +0100 format to +01:00 format
+             (formatted-tz (if (string-match "\\([+-][0-9][0-9]\\)\\([0-9][0-9]\\)" timezone-offset)
+                               (concat (match-string 1 timezone-offset) ":" (match-string 2 timezone-offset))
+                             "+00:00"))
+             (start-time-with-tz (concat start-time-iso formatted-tz))
+             (end-time-with-tz (concat end-time-iso formatted-tz))
+             (teams-data (org-outlook-create-teams-meeting title start-time-with-tz end-time-with-tz)))
+        (when teams-data
+          (let ((teams-body (org-outlook-format-teams-meeting-body teams-data)))
+            ;; Add the Teams meeting info to the capture buffer
+            (save-excursion
+              (goto-char (point-max))
+              (unless (bolp) (insert "\n"))
+              (insert teams-body))))))))
 
 (defun org-outlook-get-busy-attendees (schedules start-time end-time)
   "Return list of email addresses that are busy during the specified time slot."
@@ -824,8 +857,7 @@ Set to nil to disable automatic full syncs.")
 (defun org-outlook-init-delta-link ()
   "Initialize delta link after full sync for subsequent delta syncs."
   (message "Initializing delta link...")
-  (let* ((response (org-outlook-retrieve-events-delta))
-         (data (request-response-data response))
+  (let* ((data (request-response-data (org-outlook-retrieve-events-delta)))
          (deltalink (assoc-default '@odata.deltaLink data)))
     (if deltalink
         (progn
@@ -911,6 +943,78 @@ Full sync is slower but ensures no events are missed."
     (message "Updating org-id cache...")
     (org-id-update-id-locations (list org-outlook-file))
     (org-id-locations-save))
+
+(defun org-outlook-create-teams-meeting (subject start-time end-time)
+  "Create a Teams online meeting.
+SUBJECT is the meeting title.
+START-TIME and END-TIME should be in format \"2019-07-12T14:30:34.2444915-07:00\".
+Returns the meeting data from Microsoft Graph API."
+  (request-response-data
+   (request org-outlook-teams-meeting-url
+     :type "POST"
+     :sync t
+     :data (json-encode `(("subject" . ,subject)
+                         ("startDateTime" . ,start-time)
+                         ("endDateTime" . ,end-time)))
+     :headers `(("Authorization" . ,(concat "Bearer " (org-outlook-bearer-token)))
+               ("Content-Type" . "application/json"))
+     :parser 'json-read
+     :success (cl-function
+               (lambda (&key data &allow-other-keys)
+                 (message "Teams meeting created successfully")))
+     :error (cl-function
+             (lambda (&rest args &key error-thrown &key response &key data &allow-other-keys)
+               (message "Error creating Teams meeting: %S" error-thrown)
+               (message "Response status: %S" (request-response-status-code response))
+               (message "Response headers: %S" (request-response-headers response))
+               (message "Response data: %S" (request-response-data response))
+               (message "Request URL: %s" org-outlook-teams-meeting-url)
+               (message "Request data sent: %s" (json-encode `(("subject" . ,subject)
+                                                             ("startDateTime" . ,start-time)
+                                                             ("endDateTime" . ,end-time)))))))))
+
+(defun org-outlook-format-teams-meeting-body (teams-data)
+  "Format Teams meeting info for org-mode body text.
+TEAMS-DATA is the response from org-outlook-create-teams-meeting."
+  (when teams-data
+    (let* ((join-url (assoc-default 'joinWebUrl teams-data))
+           (meeting-id (assoc-default 'joinMeetingId
+                                     (assoc-default 'joinMeetingIdSettings teams-data)))
+           (passcode (assoc-default 'passcode
+                                   (assoc-default 'joinMeetingIdSettings teams-data)))
+           (organizer-id (assoc-default 'id
+                                       (assoc-default 'user
+                                                     (assoc-default 'identity
+                                                                   (assoc-default 'organizer
+                                                                                 (assoc-default 'participants teams-data))))))
+           (tenant-id (when join-url
+                        (if (string-match "Tid%22%3a%22\\([^%]*\\)" join-url)
+                            (match-string 1 join-url)
+                          "")))
+           (thread-id (assoc-default 'threadId (assoc-default 'chatInfo teams-data)))
+           (meeting-options-url (when (and organizer-id tenant-id thread-id)
+                                  (format "https://teams.microsoft.com/meetingOptions/?organizerId=%s&tenantId=%s&threadId=%s&messageId=0&language=en-GB"
+                                         organizer-id tenant-id thread-id))))
+      (format "________________________________________________________________________________
+
+Microsoft Teams [[https://aka.ms/JoinTeamsMeeting?omkt=en-GB][Need help?]]
+
+[[%s][Join the meeting now]]
+
+%s%s
+
+--------------
+
+For organisers:
+%s
+
+________________________________________________________________________________"
+              (or join-url "#")
+              (if meeting-id (format "Meeting ID: %s\n\n" meeting-id) "")
+              (if passcode (format "Passcode: %s\n" passcode) "")
+              (if meeting-options-url
+                  (format "[[%s][Meeting options]]" meeting-options-url)
+                "Meeting options")))))
 
 (defun org-outlook-check-availability (schedules start-time end-time &optional availability-interval)
   "Check availability for SCHEDULES between START-TIME and END-TIME.
