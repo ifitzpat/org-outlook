@@ -29,6 +29,45 @@
 
 ;;; Code:
 
+(defconst org-outlook--required-packages
+  '(org-ml html2org request org-msg web-server)
+  "Packages required by org-outlook at runtime.")
+
+(defun org-outlook--prepare-package-archives ()
+  "Ensure MELPA is available when relying on package.el for installs."
+  (require 'package)
+  (unless (assoc "melpa" package-archives)
+    (add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t))
+  (package-initialize)
+  (unless package-archive-contents
+    (package-refresh-contents)))
+
+(defun org-outlook--ensure-dependencies ()
+  "Ensure org-outlook dependencies are installed.
+
+Attempts to install packages using straight when available, and
+falls back to use-package with package.el otherwise. Packages are
+loaded eagerly so that `require' calls succeed during load."
+  (cond
+   ((and (fboundp 'use-package)
+         (fboundp 'straight-use-package))
+    (dolist (pkg org-outlook--required-packages)
+      (eval `(use-package ,pkg :straight t :demand t :defer nil))))
+   ((fboundp 'use-package)
+    (org-outlook--prepare-package-archives)
+    (dolist (pkg org-outlook--required-packages)
+      (let ((available (locate-library (symbol-name pkg))))
+        (eval `(use-package ,pkg
+                ,@(unless available '(:ensure t))
+                :demand t
+                :defer nil)))))
+   ((fboundp 'straight-use-package)
+    (dolist (pkg org-outlook--required-packages)
+      (unless (locate-library (symbol-name pkg))
+        (straight-use-package pkg))))))
+
+(org-outlook--ensure-dependencies)
+
 (require 'org-ml)
 (require 'html2org)
 (require 'request)
