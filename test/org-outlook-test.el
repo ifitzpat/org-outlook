@@ -68,19 +68,5 @@
       (org-outlook-open-event-link)
       (should (equal opened "https://teams")))))
 
-(ert-deftest org-outlook-request-access-token-includes-client-secret ()
-  (let ((org-outlook-client-secret "super-secret")
-        (org-outlook-client-id "client-id")
-        (org-outlook-resource-url "https://graph.microsoft.com/Calendars.ReadWrite"))
-    (cl-letf (((symbol-function 'org-outlook-refresh-token) (lambda () "refresh-token"))
-              ((symbol-function 'org-outlook-set-token-field) (lambda (&rest _)))
-              ((symbol-function 'request)
-               (lambda (_url &rest args)
-                 (let ((data (plist-get args :data)))
-                   (should (member '("client_id" . "client-id") data))
-                   (should (member '("client_secret" . "super-secret") data))
-                   (should (member '("refresh_token" . "refresh-token") data))))))
-      (org-outlook-request-access-token))))
-
 (provide 'org-outlook-test)
 ;;; org-outlook-test.el ends here

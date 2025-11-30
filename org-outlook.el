@@ -90,8 +90,8 @@ loaded eagerly so that `require' calls succeed during load."
                                  #'browse-url)
   "Function used to open browser links during OAuth and event navigation.")
 
-(defvar org-outlook-client-id "b492c004-c02d-45d8-86e6-37c59b29f0f3" "Microsoft Entra App Registration Client ID. You can use the default or provide your own if you prefer (see README.org for details)")
-(defvar org-outlook-client-secret "c219c90b-b200-4915-86e4-045a996adf6d" "Microsoft Entra App Registration Client secret.")
+(defvar org-outlook-client-id "08162f7c-0fd2-4200-a84a-f25a4db0b584" "Microsoft Entra App Registration Client ID. You can use the default or provide your own if you prefer (see README.org for details)")
+(defvar org-outlook-client-secret "TxRBilcHdC6WGBee]fs?QR:SJ8nI[g82" "Microsoft Entra App Registration Client secret.")
 (defvar org-outlook-tenant-id "organizations" "If you provide your own App Registration you can optionally set this to only your outlook tenant (see README.org for details).")
 
 (defvar org-outlook-auth-url (format "https://login.microsoftonline.com/%s/oauth2/v2.0/authorize" org-outlook-tenant-id))
