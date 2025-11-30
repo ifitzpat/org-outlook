@@ -90,7 +90,8 @@ loaded eagerly so that `require' calls succeed during load."
                                  #'browse-url)
   "Function used to open browser links during OAuth and event navigation.")
 
-(defvar org-outlook-client-id "3df0b076-dc9c-48f8-b940-a271ed0bb14b" "Microsoft Entra App Registration Client ID. You can use the default or provide your own if you prefer (see README.org for details)")
+(defvar org-outlook-client-id "08162f7c-0fd2-4200-a84a-f25a4db0b584" "Microsoft Entra App Registration Client ID. You can use the default or provide your own if you prefer (see README.org for details)")
+(defvar org-outlook-client-secret "TxRBilcHdC6WGBee]fs?QR:SJ8nI[g82" "Microsoft Entra App Registration Client secret.")
 (defvar org-outlook-tenant-id "organizations" "If you provide your own App Registration you can optionally set this to only your outlook tenant (see README.org for details).")
 
 (defvar org-outlook-auth-url (format "https://login.microsoftonline.com/%s/oauth2/v2.0/authorize" org-outlook-tenant-id))
@@ -270,38 +271,43 @@ Returns the authorization code on success."
 
 (defun org-outlook-request-access-token ()
   (let* ((refresh_token (org-outlook-refresh-token))
-	 (auth_code (or refresh_token
-			(progn
-			  (org-outlook-request-authorization)
-			  ;(message "retrieved auth token")
-    			  ;(org-outlook-auth-token)
-			  )
-			)))
-    ;(message auth_code)
-    (request org-outlook-token-url
-      :type "POST"
-      :sync t
-      :data `(("tenant" . ,org-outlook-tenant-id)
-	      ("client_id" . ,org-outlook-client-id)
-	      ("scope" . ,(concat "offline_access " org-outlook-resource-url))
-	      ,(if refresh_token
-		   `("refresh_token" . ,refresh_token)
-		 `("code" . ,auth_code))
-              ("redirect_uri" . "http://localhost:9004")
-	      ,(if refresh_token
-		   '("grant_type" . "refresh_token")
-	         '("grant_type" . "authorization_code"))
-	      ("code_verifier" . ,org-outlook-code-verifier))
-      :parser 'json-read
-      :success (cl-function
-		(lambda (&key data &allow-other-keys)
-		  (when data
-		    (org-outlook-set-token-field "access" `(:timestamp ,(format-time-string "%Y-%m-%dT%H:%M:%S" (current-time))) `(:access ,(assoc-default 'access_token data)))
-		    (org-outlook-set-token-field "refresh" `(:timestamp ,(format-time-string "%Y-%m-%dT%H:%M:%S" (current-time))) `(:refresh ,(assoc-default 'refresh_token data)))
-		    )))
-      :error (cl-function
-	      (lambda (&rest args &key error-thrown &allow-other-keys)
-		(message "Error getting access token: %S" error-thrown))))))
+         (auth_code (or refresh_token
+                        (progn
+                          (org-outlook-request-authorization)
+                          ;(message "retrieved auth token")
+                          ;(org-outlook-auth-token)
+                          )
+                        )))
+    (let ((token-request-data `(("tenant" . ,org-outlook-tenant-id)
+                                ("client_id" . ,org-outlook-client-id)
+                                ("scope" . ,(concat "offline_access " org-outlook-resource-url))
+                                ,(if refresh_token
+                                     `("refresh_token" . ,refresh_token)
+                                   `("code" . ,auth_code))
+                                ("redirect_uri" . "http://localhost:9004")
+                                ,(if refresh_token
+                                     '("grant_type" . "refresh_token")
+                                   '("grant_type" . "authorization_code"))
+                                ("code_verifier" . ,org-outlook-code-verifier))))
+      (when org-outlook-client-secret
+        (setq token-request-data
+              (append token-request-data
+                      `(("client_secret" . ,org-outlook-client-secret)))))
+      ;(message auth_code)
+      (request org-outlook-token-url
+        :type "POST"
+        :sync t
+        :data token-request-data
+        :parser 'json-read
+        :success (cl-function
+                  (lambda (&key data &allow-other-keys)
+                    (when data
+                      (org-outlook-set-token-field "access" `(:timestamp ,(format-time-string "%Y-%m-%dT%H:%M:%S" (current-time))) `(:access ,(assoc-default 'access_token data)))
+                      (org-outlook-set-token-field "refresh" `(:timestamp ,(format-time-string "%Y-%m-%dT%H:%M:%S" (current-time))) `(:refresh ,(assoc-default 'refresh_token data)))
+                      )))
+        :error (cl-function
+                (lambda (&rest args &key error-thrown &allow-other-keys)
+                  (message "Error getting access token: %S" error-thrown)))))))
 
 
 (defun org-outlook-bearer-token ()
