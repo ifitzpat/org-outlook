@@ -4,7 +4,7 @@
 
 ;; Author: Ian FitzPatrick ian@ianfitzpatrick.eu
 ;; URL: github.com/ifitzpat/org-outlook
-;; Version: 0.1.1
+;; Version: 0.1.3
 ;; Package-Requires: ((emacs "27.1") (org-ml "6.0.2") (html2org "0.1") (request "0.3.3") (org-msg "4.0") (web-server "0.1.2"))
 ;; Keywords: calendar outlook org-mode
 
@@ -76,9 +76,11 @@ loaded eagerly so that `require' calls succeed during load."
 (require 'plstore)
 (require 'web-server)
 
-(defconst org-outlook-resource-url "https://graph.microsoft.com/Calendars.ReadWrite")
+(defconst org-outlook-resource-url "https://graph.microsoft.com/.default")
 (defconst org-outlook-events-url "https://graph.microsoft.com/v1.0/me/calendarview")
 (defconst org-outlook-events-create-url "https://graph.microsoft.com/v1.0/me/calendar/events")
+(defconst org-outlook-schedule-url "https://graph.microsoft.com/v1.0/me/calendar/getSchedule")
+(defconst org-outlook-teams-meeting-url "https://graph.microsoft.com/v1.0/me/onlineMeetings")
 
 (defvar org-outlook-local-timezone "Europe/Berlin" "Your timezone")
 (defvar org-outlook-token-cache-file "~/.cache/outlook.plist" "Path to a plist file to keep the encrypted secret tokens")
@@ -98,9 +100,10 @@ nil, tokens are stored without encryption."
                                  #'browse-url)
   "Function used to open browser links during OAuth and event navigation.")
 
-(defvar org-outlook-client-id "b492c004-c02d-45d8-86e6-37c59b29f0f3" "Microsoft Entra App Registration Client ID. You can use the default or provide your own if you prefer (see README.org for details)")
-(defvar org-outlook-client-secret "c219c90b-b200-4915-86e4-045a996adf6d" "Microsoft Entra App Registration Client secret.")
+(defvar org-outlook-client-id "08162f7c-0fd2-4200-a84a-f25a4db0b584" "Microsoft Entra App Registration Client ID. You can use the default or provide your own if you prefer (see README.org for details)")
+(defvar org-outlook-client-secret "TxRBilcHdC6WGBee]fs?QR:SJ8nI[g82" "Microsoft Entra App Registration Client secret.")
 (defvar org-outlook-tenant-id "organizations" "If you provide your own App Registration you can optionally set this to only your outlook tenant (see README.org for details).")
+(defvar org-outlook-user-email nil "Your email address for availability checks. Set this to use org-outlook-i-am-available-p.")
 
 (defvar org-outlook-auth-url (format "https://login.microsoftonline.com/%s/oauth2/v2.0/authorize" org-outlook-tenant-id))
 (setq org-outlook-token-url (format "https://login.microsoftonline.com/%s/oauth2/v2.0/token" org-outlook-tenant-id))
@@ -138,10 +141,13 @@ nil, tokens are stored without encryption."
 (defun token-timed-out (&optional token)
   (let* ((token (or token "access"))
 	 (org-outlook-token-cache (plstore-open (expand-file-name org-outlook-token-cache-file)))
-	 (auth-timestamp (plist-get (cdr (plstore-get org-outlook-token-cache token)) :timestamp)))
+	 (auth-timestamp (plist-get (cdr (plstore-get org-outlook-token-cache token)) :timestamp))
+	 (timeout-seconds (if (string= token "refresh")
+			      (* 89 24 60 60)  ; 89 days in seconds
+			    3599)))            ; 1 hour for access tokens
     (plstore-close org-outlook-token-cache)
     (if auth-timestamp
-	(time-less-p (time-add (parse-iso8601-time-string auth-timestamp) (seconds-to-time 3599))  (current-time))
+	(time-less-p (time-add (parse-iso8601-time-string auth-timestamp) (seconds-to-time timeout-seconds))  (current-time))
       nil)))
 
 (defun token-cache-exists ()
@@ -537,14 +543,18 @@ both Org buffers and `org-agenda' buffers."
   (defun org-outlook-capture-template ()
     "Returns `org-capture' template string for new outlook calendar event.
  See `org-capture-templates' for more information."
-    (let* ((title (read-from-minibuffer "Event title: ")))
+    (let* ((title (read-from-minibuffer "Event title: "))
+           (teams-meeting (y-or-n-p "Include Teams meeting? ")))
       (mapconcat #'identity
                  `(
                    ,(concat "** MEETING " title)
                    ":PROPERTIES:"
 		   ":INVITEES: %^{Space separated invitees: }"
-		   ":LOCATION: %^{Meeting location: }"
+		   ,(if teams-meeting
+		        ":LOCATION: Microsoft Teams Meeting"
+		      ":LOCATION: %^{Meeting location: }")
 		   ":MEETING-TIME: %^{Specify meeting time: }T" ; TODO Fix
+		   ,(if teams-meeting ":TEAMS-MEETING: yes" "")
                    ":END:"
                    "%?\n")          ;Place the cursor here finally
                  "\n")))
@@ -565,11 +575,105 @@ both Org buffers and `org-agenda' buffers."
     (if (re-search-forward "MEETING-TIME" nil t) ; TODO Fix
 	(progn
 	  (goto-char (point-min))
-	  (org-outlook-calendar-create-or-update-event)
+	  ;; Check availability before creating the event
+	  (when (org-outlook-check-capture-availability)
+	    (org-outlook-handle-teams-meeting-creation)
+	    (org-outlook-calendar-create-or-update-event))
 					; (let ((attachments (org-outlook-get-appointment-property "ATTACHMENTS")))
 					;      (if attachments (mapc attachments #'org-outlook-add-attachment)))
 	  )
       (message "not an outlook event"))))
+
+(defun org-outlook-check-capture-availability ()
+  "Check availability of invitees in current capture and prompt user if conflicts exist.
+Returns t to proceed with event creation, nil if user wants to edit."
+  (let* ((elm (org-ml-parse-element-at (point)))
+         (invitees-str (org-ml-headline-get-node-property "INVITEES" elm))
+         (meeting-time-str (org-ml-headline-get-node-property "MEETING-TIME" elm)))
+    (if (and invitees-str meeting-time-str
+             (not (string-empty-p invitees-str))
+             (not (string-empty-p meeting-time-str)))
+        (let* ((invitees (split-string invitees-str))
+               (start-time (org-outlook-start-time-from-timestamp meeting-time-str))
+               (end-time (org-outlook-end-time-from-timestamp meeting-time-str))
+               (all-available (org-outlook-persons-available-p invitees start-time end-time)))
+          (if all-available
+              (progn
+                (message "✓ All attendees are available")
+                t)
+            ;; Some people are not available - get details and prompt user
+            (let* ((availability-data (org-outlook-check-availability invitees start-time end-time))
+                   (schedules (append (assoc-default 'value availability-data) nil))
+                   (busy-people (org-outlook-get-busy-attendees schedules start-time end-time)))
+              (if busy-people
+                  (let ((choice (read-char-choice
+                                (format "⚠️  Some attendees are busy: %s\n\n(c)ontinue anyway, (e)dit capture, (q)uit capture? "
+                                        (mapconcat 'identity busy-people ", "))
+                                '(?c ?e ?q))))
+                    (cond
+                     ((eq choice ?c)
+                      (message "Creating meeting despite conflicts...")
+                      t)
+                     ((eq choice ?e)
+                      (message "Please edit and finalize again")
+                      (error "Availability conflicts - please edit and try again"))
+                     ((eq choice ?q)
+                      (org-capture-kill)
+                      (error "Capture cancelled"))))
+                (progn
+                  (message "✓ All attendees are available")
+                  t)))))
+      ;; No invitees or meeting time specified - proceed
+      t)))
+
+(defun org-outlook-handle-teams-meeting-creation ()
+  "Handle Teams meeting creation during capture if TEAMS-MEETING property is set."
+  (let* ((elm (org-ml-parse-element-at (point)))
+         (teams-meeting (org-ml-headline-get-node-property "TEAMS-MEETING" elm))
+         (title (car (append (org-ml-get-property :title elm) nil)))
+         (meeting-time-str (org-ml-headline-get-node-property "MEETING-TIME" elm)))
+    (when (and teams-meeting (string= teams-meeting "yes") meeting-time-str title)
+      (let* ((start-time-iso (concat (org-outlook-start-time-from-timestamp meeting-time-str) ".0000000"))
+             (end-time-iso (concat (org-outlook-end-time-from-timestamp meeting-time-str) ".0000000"))
+             ;; Convert to ISO 8601 format with timezone
+             (current-time-obj (current-time))
+             (timezone-offset (format-time-string "%z" current-time-obj))
+             ;; Convert +0100 format to +01:00 format
+             (formatted-tz (if (string-match "\\([+-][0-9][0-9]\\)\\([0-9][0-9]\\)" timezone-offset)
+                               (concat (match-string 1 timezone-offset) ":" (match-string 2 timezone-offset))
+                             "+00:00"))
+             (start-time-with-tz (concat start-time-iso formatted-tz))
+             (end-time-with-tz (concat end-time-iso formatted-tz))
+             (teams-data (org-outlook-create-teams-meeting title start-time-with-tz end-time-with-tz)))
+        (when teams-data
+          (let ((teams-body (org-outlook-format-teams-meeting-body teams-data)))
+            ;; Add the Teams meeting info to the capture buffer
+            (save-excursion
+              (goto-char (point-max))
+              (unless (bolp) (insert "\n"))
+              (insert teams-body))))))))
+
+(defun org-outlook-get-busy-attendees (schedules start-time end-time)
+  "Return list of email addresses that are busy during the specified time slot."
+  (let ((start-time-obj (parse-iso8601-time-string start-time))
+        (end-time-obj (parse-iso8601-time-string end-time))
+        busy-people)
+    (dolist (schedule schedules)
+      (let ((schedule-id (assoc-default 'scheduleId schedule))
+            (schedule-items (append (assoc-default 'scheduleItems schedule) nil)))
+        (when (seq-some (lambda (item)
+                          (let ((item-start (parse-iso8601-time-string
+                                           (assoc-default 'dateTime (assoc-default 'start item))))
+                                (item-end (parse-iso8601-time-string
+                                         (assoc-default 'dateTime (assoc-default 'end item))))
+                                (status (assoc-default 'status item)))
+                            ;; Check if item is busy/tentative and overlaps
+                            (and (member status '("busy" "tentative" "oof"))
+                                 (time-less-p item-start end-time-obj)
+                                 (time-less-p start-time-obj item-end))))
+                        schedule-items)
+          (push schedule-id busy-people))))
+    busy-people))
 
 (defun org-outlook-get-prop-from-agenda (prop)
   (let* ((hdmarker (or (org-get-at-bol 'org-hd-marker)
@@ -846,8 +950,7 @@ Set to nil to disable automatic full syncs.")
 (defun org-outlook-init-delta-link ()
   "Initialize delta link after full sync for subsequent delta syncs."
   (message "Initializing delta link...")
-  (let* ((response (org-outlook-retrieve-events-delta))
-         (data (request-response-data response))
+  (let* ((data (request-response-data (org-outlook-retrieve-events-delta)))
          (deltalink (assoc-default '@odata.deltaLink data)))
     (if deltalink
         (progn
@@ -933,6 +1036,202 @@ Full sync is slower but ensures no events are missed."
     (message "Updating org-id cache...")
     (org-id-update-id-locations (list org-outlook-file))
     (org-id-locations-save))
+
+(defun org-outlook-create-teams-meeting (subject start-time end-time)
+  "Create a Teams online meeting.
+SUBJECT is the meeting title.
+START-TIME and END-TIME should be in format \"2019-07-12T14:30:34.2444915-07:00\".
+Returns the meeting data from Microsoft Graph API."
+  (request-response-data
+   (request org-outlook-teams-meeting-url
+     :type "POST"
+     :sync t
+     :data (json-encode `(("subject" . ,subject)
+                         ("startDateTime" . ,start-time)
+                         ("endDateTime" . ,end-time)))
+     :headers `(("Authorization" . ,(concat "Bearer " (org-outlook-bearer-token)))
+               ("Content-Type" . "application/json"))
+     :parser 'json-read
+     :success (cl-function
+               (lambda (&key data &allow-other-keys)
+                 (message "Teams meeting created successfully")))
+     :error (cl-function
+             (lambda (&rest args &key error-thrown &key response &key data &allow-other-keys)
+               (message "Error creating Teams meeting: %S" error-thrown)
+               (message "Response status: %S" (request-response-status-code response))
+               (message "Response headers: %S" (request-response-headers response))
+               (message "Response data: %S" (request-response-data response))
+               (message "Request URL: %s" org-outlook-teams-meeting-url)
+               (message "Request data sent: %s" (json-encode `(("subject" . ,subject)
+                                                             ("startDateTime" . ,start-time)
+                                                             ("endDateTime" . ,end-time)))))))))
+
+(defun org-outlook-format-teams-meeting-body (teams-data)
+  "Format Teams meeting info for org-mode body text.
+TEAMS-DATA is the response from org-outlook-create-teams-meeting."
+  (when teams-data
+    (let* ((join-url (assoc-default 'joinWebUrl teams-data))
+           (meeting-id (assoc-default 'joinMeetingId
+                                     (assoc-default 'joinMeetingIdSettings teams-data)))
+           (passcode (assoc-default 'passcode
+                                   (assoc-default 'joinMeetingIdSettings teams-data)))
+           (organizer-id (assoc-default 'id
+                                       (assoc-default 'user
+                                                     (assoc-default 'identity
+                                                                   (assoc-default 'organizer
+                                                                                 (assoc-default 'participants teams-data))))))
+           (tenant-id (when join-url
+                        (if (string-match "Tid%22%3a%22\\([^%]*\\)" join-url)
+                            (match-string 1 join-url)
+                          "")))
+           (thread-id (assoc-default 'threadId (assoc-default 'chatInfo teams-data)))
+           (meeting-options-url (when (and organizer-id tenant-id thread-id)
+                                  (format "https://teams.microsoft.com/meetingOptions/?organizerId=%s&tenantId=%s&threadId=%s&messageId=0&language=en-GB"
+                                         organizer-id tenant-id thread-id))))
+      (format "________________________________________________________________________________
+
+Microsoft Teams [[https://aka.ms/JoinTeamsMeeting?omkt=en-GB][Need help?]]
+
+[[%s][Join the meeting now]]
+
+%s%s
+
+--------------
+
+For organisers:
+%s
+
+________________________________________________________________________________"
+              (or join-url "#")
+              (if meeting-id (format "Meeting ID: %s\n\n" meeting-id) "")
+              (if passcode (format "Passcode: %s\n" passcode) "")
+              (if meeting-options-url
+                  (format "[[%s][Meeting options]]" meeting-options-url)
+                "Meeting options")))))
+
+(defun org-outlook-check-availability (schedules start-time end-time &optional availability-interval)
+  "Check availability for SCHEDULES between START-TIME and END-TIME.
+SCHEDULES is a list of email addresses to check.
+START-TIME and END-TIME should be in format \"2019-03-15T09:00:00\".
+AVAILABILITY-INTERVAL is optional (default 30 minutes)."
+  (interactive
+   (list (split-string (read-string "Email addresses (space separated): "))
+         (read-string "Start time (YYYY-MM-DDTHH:MM:SS): ")
+         (read-string "End time (YYYY-MM-DDTHH:MM:SS): ")))
+
+  (let ((interval (or availability-interval 30)))
+    (request-response-data
+     (request org-outlook-schedule-url
+       :type "POST"
+       :sync t
+       :data (json-encode `(("schedules" . ,(vconcat schedules))
+                           ("startTime" . (("dateTime" . ,start-time)
+                                         ("timeZone" . ,org-outlook-local-timezone)))
+                           ("endTime" . (("dateTime" . ,end-time)
+                                       ("timeZone" . ,org-outlook-local-timezone)))
+                           ("availabilityViewInterval" . ,interval)))
+       :headers `(("Authorization" . ,(concat "Bearer " (org-outlook-bearer-token)))
+                 ("Content-Type" . "application/json")
+                 ("Prefer" . ,(format "outlook.timezone=\"%s\"" org-outlook-local-timezone)))
+       :parser 'json-read
+       :success (cl-function
+                 (lambda (&key data &allow-other-keys)
+                   (message "Availability data retrieved successfully")))
+       :error (cl-function
+               (lambda (&rest args &key error-thrown &allow-other-keys)
+                 (message "Error checking availability: %S" error-thrown)))))))
+
+(defun org-outlook-display-availability (data)
+  "Display availability data in a readable format."
+  (let ((schedules (append (assoc-default 'value data) nil))
+        (buffer-name "*Outlook Availability*"))
+    (with-current-buffer (get-buffer-create buffer-name)
+      (erase-buffer)
+      (insert "=== Outlook Availability Report ===\n\n")
+      (dolist (schedule schedules)
+        (let ((schedule-id (assoc-default 'scheduleId schedule))
+              (availability-view (assoc-default 'availabilityView schedule))
+              (schedule-items (append (assoc-default 'scheduleItems schedule) nil))
+              (working-hours (assoc-default 'workingHours schedule)))
+
+          (insert (format "📧 %s\n" schedule-id))
+          (insert (format "Availability View: %s\n" availability-view))
+          (insert "   (0=free, 1=tentative, 2=busy, 3=oof, 4=workingElsewhere)\n\n")
+
+          (if schedule-items
+              (progn
+                (insert "Schedule Items:\n")
+                (dolist (item schedule-items)
+                  (let ((status (assoc-default 'status item))
+                        (subject (assoc-default 'subject item))
+                        (start (assoc-default 'dateTime (assoc-default 'start item)))
+                        (end (assoc-default 'dateTime (assoc-default 'end item)))
+                        (location (assoc-default 'location item))
+                        (is-private (assoc-default 'isPrivate item)))
+                    (insert (format "  • %s: %s\n"
+                                  (upcase status)
+                                  (if (and subject (not is-private)) subject "Private/No Subject")))
+                    (insert (format "    Time: %s - %s\n"
+                                  (org-outlook-format-datetime start)
+                                  (org-outlook-format-datetime end)))
+                    (when (and location (not is-private))
+                      (insert (format "    Location: %s\n" location)))
+                    (insert "\n"))))
+            (insert "No scheduled items\n\n"))
+
+          (when working-hours
+            (let ((days (append (assoc-default 'daysOfWeek working-hours) nil))
+                  (start-time (assoc-default 'startTime working-hours))
+                  (end-time (assoc-default 'endTime working-hours)))
+              (insert (format "Working Hours: %s %s - %s\n"
+                            (mapconcat 'capitalize days ", ")
+                            (substring start-time 0 5)
+                            (substring end-time 0 5)))))
+
+          (insert "\n" (make-string 50 ?-) "\n\n")))
+
+      (goto-char (point-min))
+      (display-buffer (current-buffer)))))
+
+(defun org-outlook-format-datetime (datetime-str)
+  "Format datetime string for display using existing time parsing."
+  (let ((time-obj (parse-iso8601-time-string datetime-str)))
+    (format-time-string "%Y-%m-%d %H:%M" time-obj)))
+
+(defun org-outlook-persons-available-p (emails start-time end-time)
+  "Check if EMAILS are available between START-TIME and END-TIME.
+EMAILS can be a single email string or a list of email strings.
+Returns t if ALL are available (free), nil if ANY are busy.
+START-TIME and END-TIME should be in format \"2019-03-15T09:00:00\"."
+  (let* ((email-list (if (listp emails) emails (list emails)))
+         (data (org-outlook-check-availability email-list start-time end-time))
+         (schedules (append (assoc-default 'value data) nil))
+         (start-time-obj (parse-iso8601-time-string start-time))
+         (end-time-obj (parse-iso8601-time-string end-time)))
+    ;; Check if ALL persons are available
+    (seq-every-p (lambda (person-schedule)
+                   (let ((schedule-items (append (assoc-default 'scheduleItems person-schedule) nil)))
+                     ;; Person is available if no busy/tentative items overlap
+                     (not (seq-some (lambda (item)
+                                      (let ((item-start (parse-iso8601-time-string
+                                                        (assoc-default 'dateTime (assoc-default 'start item))))
+                                            (item-end (parse-iso8601-time-string
+                                                      (assoc-default 'dateTime (assoc-default 'end item))))
+                                            (status (assoc-default 'status item)))
+                                        ;; Check if item is busy/tentative and overlaps with our time slot
+                                        (and (member status '("busy" "tentative" "oof"))
+                                             (time-less-p item-start end-time-obj)
+                                             (time-less-p start-time-obj item-end))))
+                                    schedule-items))))
+                 schedules)))
+
+(defun org-outlook-i-am-available-p (start-time end-time)
+  "Check if you are available between START-TIME and END-TIME.
+Uses org-outlook-user-email variable. Returns t if available, nil if busy.
+START-TIME and END-TIME should be in format \"2019-03-15T09:00:00\"."
+  (if org-outlook-user-email
+      (org-outlook-persons-available-p org-outlook-user-email start-time end-time)
+    (user-error "Please set org-outlook-user-email first")))
 
 
 (provide 'org-outlook)

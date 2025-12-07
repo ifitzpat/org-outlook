@@ -27,7 +27,10 @@ Conquer your Microsoft Outlook agenda from the comfort of Emacs.
 + *Accept and Decline meeting requests from the agenda buffer*
 + *Join Teams calls directly from the agenda buffer* (launches Teams or web browser)
 + *At-a-glance overview of your appointments and free timeslots when used with* [[https://github.com/ichernyshovvv/org-timeblock][org-timeblock]]
-+ Org *capture template* to quickly plan meetings (needs testing).
++ Org *capture template* to quickly plan meetings with *Teams meeting integration*
+  - Automatic Teams meeting creation with join links
+  - Availability checking for all invitees
+  - Interactive conflict resolution
 
 /Planned features & improvements:/
 
@@ -69,9 +72,20 @@ A standard oauth client is provided with =org-outlook=, you are of course, free 
 own Microsoft Entra App Registration instead. To do so you will need to create an App
 Registration in Microsoft Entra (Formally Azure Active Directory) via
 [[https://portal.azure.com]]. Optionally make a note of your =tenant-id= (you can provide
-=org-outlook-tenant-id= to restrict the scope of your app to your Azure tenant). The app
-will need the =Calendars.Read=, =Calendars.ReadWrite=, and =offline_access= API
-permissions. Under "Authentication" click =Add a platform= and add =http://localhost:9004= as
+=org-outlook-tenant-id= to restrict the scope of your app to your Azure tenant).
+
+*Required API permissions:*
+- =Calendars.Read= - Read calendar events
+- =Calendars.ReadWrite= - Create and modify calendar events
+- =offline_access= - Maintain access when user is offline
+
+*Additional permissions for Teams meeting functionality:*
+- =OnlineMeetings.ReadWrite= - Create Teams meetings with join links
+- =Calendars.ReadBasic.All= - Check availability of other users
+
+*Note:* For Teams functionality, you may need to use the =https://graph.microsoft.com/.default= scope instead of individual permissions due to Microsoft Graph API limitations.
+
+Under "Authentication" click =Add a platform= and add =http://localhost:9004= as
 the redirect uri. At the bottom of the page ensure =Allow public client flows= is toggled to
 "Yes". From the "Overview" tab copy the =Application (client) id= and insert into your
 config as specified below.
@@ -108,6 +122,9 @@ Installing with [[https://framagit.org/steckerhalter/quelpa][Quelpa]] is easy:
   (setq org-outlook-full-sync-interval-days 7)  ; weekly validation
   ;(setq org-outlook-full-sync-interval-days 14) ; bi-weekly validation
   ;(setq org-outlook-full-sync-interval-days nil) ; disable automatic full syncs
+
+  ;; Optional: Set your email for availability checking functions
+  (setq org-outlook-user-email "your.email@company.com")
   )
 #+END_SRC
 
@@ -146,9 +163,65 @@ Installing with [[https://framagit.org/steckerhalter/quelpa][Quelpa]] is easy:
 +  *Joining a Teams meeting:*
      - With point on the entry in the agenda view or within the org entry body: =org-outlook-join-teams-call= 
 
++  *Creating new meetings with org-capture:*
+     - =C-c c o= - Create new Outlook meeting using org-capture template
+     - The template will prompt for:
+       - Event title
+       - Teams meeting (yes/no)
+       - Invitees (space-separated email addresses)
+       - Location
+       - Meeting time (org timestamp format)
+     - Upon finalization (=C-c C-c=), the system automatically:
+       - Checks availability of all invitees
+       - Warns if conflicts exist with options to continue, edit, or cancel
+       - Creates Teams meeting with join link if Teams meeting was selected
+       - Creates the event in Outlook if proceeding
+
++  *Checking availability:*
+     - =M-x org-outlook-check-availability= - Interactive availability check for multiple people
+     - =org-outlook-persons-available-p= - Programmatic availability check (returns t/nil)
+     - =org-outlook-i-am-available-p= - Check your own availability (requires =org-outlook-user-email= to be set)
+
+     *Example usage:*
+     #+BEGIN_SRC emacs-lisp
+     ;; Set your email for convenience functions
+     (setq org-outlook-user-email "your.email@company.com")
+     
+     ;; Check if you're free for a meeting
+     (org-outlook-i-am-available-p "2025-11-30T14:00:00" "2025-11-30T15:00:00")
+     
+     ;; Check if multiple people are all available
+     (org-outlook-persons-available-p '("person1@company.com" 
+                                       "person2@company.com")
+                                     "2025-11-30T14:00:00" 
+                                     "2025-11-30T15:00:00")
+     
+     ;; Interactive availability report
+     (org-outlook-check-availability '("colleague@company.com") 
+                                    "2025-11-30T09:00:00" 
+                                    "2025-11-30T17:00:00")
+     #+END_SRC
+
 ** Tips
 
 + Calling =org-outlook-sync= via =emacs --batch= avoids blocking your main emacs session.
+
++ *Creating meetings with org-capture workflow:*
+  1. Press =C-c c o= to start the capture template
+  2. Enter event title when prompted
+  3. Fill in the template:
+     - =INVITEES:= Space-separated email addresses (e.g., =john@company.com mary@company.com=)
+     - =LOCATION:= Meeting location
+     - =MEETING-TIME:= Use org timestamp (e.g., =<2025-12-01 Mon 14:00-15:00>=)
+  4. Press =C-c C-c= to finalize
+  5. If conflicts are detected, choose from:
+     - =(c)ontinue anyway= - Proceed despite conflicts
+     - =(e)dit capture= - Return to edit invitees/time
+     - =(q)uit capture= - Cancel the meeting creation
+  6. If Teams meeting was selected:
+     - Automatically creates Teams meeting with join link
+     - Join link is included in the meeting body and org entry
+  7. Meeting is automatically created in Outlook and synced to your org file
 
 
 
@@ -158,9 +231,40 @@ Installing with [[https://framagit.org/steckerhalter/quelpa][Quelpa]] is easy:
 :END:
 
 /Note:/ Breaking changes may be made before version 1.0, but in the event of major changes, attempts at backward compatibility will be made with obsolescence declarations, translation of arguments, etc.  Users who need stability guarantees before 1.0 may choose to use tagged stable releases.
-** 0.1.1-beta (2025-11-29)
 
-Major stability and reliability improvements:
+** 0.1.3-beta (2025-11-30)
+
+*** New Features
++ *Teams meeting integration* - Create Teams meetings directly from org-capture template
+  - Set location to "Teams" to automatically create Teams meeting with join link
+  - Join links are included in meeting body and org entry properties
++ *Comprehensive availability checking system*
+  - =org-outlook-check-availability= - Interactive availability reports
+  - =org-outlook-persons-available-p= - Programmatic availability checking
+  - =org-outlook-i-am-available-p= - Check your own availability (requires =org-outlook-user-email=)
++ Enhanced org-capture template with conflict resolution workflow
+
+*** Fixed Issues
++ *No issue number:* Fixed buffer mode switching bug where any buffer would be switched to org-mode during event insertion
+
+*** Breaking Changes
++ *Authentication scope change* - Now uses =https://graph.microsoft.com/.default= scope for broader API access
++ *Token cache invalidation* - Users must delete =~/.cache/outlook.plist= and re-authenticate
++ *New API permissions required* for Teams functionality:
+  - =OnlineMeetings.ReadWrite= (Teams meeting creation)
+  - =Calendars.ReadBasic.All= (availability checking)
+
+** 0.1.2-beta (2025-11-29)
+
+*** New Features
++ org-capture-template now checks for attendee availability and allows you to edit the
+  event if one or more attendees is not available
+  
+*** Fixed Issues
++ *No issue number:* fix refresh token timeout
+
+
+** 0.1.1-beta (2025-11-29)
 
 *** Fixed Issues
 + *Issue #5:* - browser does not launch on MacOS
@@ -234,8 +338,12 @@ Initial release
 
  - Accepting an event doesn't change the event status from =REQUEST= to =MEETING= until the
    next sync.
+   
+** Fixed in 0.1.2-beta
 
-** Fixed in 0.1.0-beta
+ - ✅ fix refresh token time-out (fixed in 0.1.2)
+
+** Fixed in 0.1.1-beta
 
  - ✅ AADSTS501491: Invalid size of Code_Challenge (fixed in 0.1.1)
  - ✅ browser does not launch on MacOS (fixed in 0.1.1)
