@@ -84,6 +84,14 @@ loaded eagerly so that `require' calls succeed during load."
 
 (defvar org-outlook-local-timezone "Europe/Berlin" "Your timezone")
 (defvar org-outlook-token-cache-file "~/.cache/outlook.plist" "Path to a plist file to keep the encrypted secret tokens")
+(defcustom org-outlook-gpg-recipient nil
+  "GPG recipient used to encrypt the token cache when available.
+
+When set to a string, plstore will encrypt tokens to that key.  When
+nil, tokens are stored without encryption."
+  :type '(choice (const :tag "Do not encrypt" nil)
+                 (string :tag "Recipient"))
+  :group 'org-outlook)
 (defvar org-outlook-sync-start 14 "How many days 'in the past' should be synced?")
 (defvar org-outlook-sync-end 90 "How many days 'in the future' should be synced?")
 (defvar org-outlook-file "~/.emacs.d/outlook.org")
