@@ -330,7 +330,7 @@ Returns the authorization code on success."
 		  (when data
 		    (message "Created event")))))))
 
-(if (listp 'org-agenda-files)
+(if (listp org-agenda-files)
     (add-to-list 'org-agenda-files org-outlook-file)
   (setq org-agenda-files (list org-outlook-file)))
 
