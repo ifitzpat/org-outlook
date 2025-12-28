@@ -281,17 +281,17 @@ Installing with [[https://framagit.org/steckerhalter/quelpa][Quelpa]] is easy:
 Major stability and reliability improvements:
 
 *** Fixed Issues
-+ *Issue #1 - DST Duplicates*: Fixed duplicate events during daylight saving time transitions
++ *Issue [[https://github.com/ifitzpat/org-outlook/issues/1][#1]] - DST Duplicates*: Fixed duplicate events during daylight saving time transitions
   - Event IDs now use Outlook ID directly (stable across DST changes)
   - Fixed timestamp parsing to handle local timezone correctly
   - Added error handling for stale org-id cache
   - Each recurring event instance has unique, stable ID
-+ *Issue #2 - Refresh Token*: Fixed reversed logic that prevented automatic OAuth flow when refresh token expired
-+ *Issue #3 - Auth Code Race Conditions*: Removed blocking sleeps and race conditions from OAuth flow
++ *Issue [[https://github.com/ifitzpat/org-outlook/issues/2][#2]] - Refresh Token*: Fixed reversed logic that prevented automatic OAuth flow when refresh token expired
++ *Issue [[https://github.com/ifitzpat/org-outlook/issues/3][#3]] - Auth Code Race Conditions*: Removed blocking sleeps and race conditions from OAuth flow
   - Non-blocking authentication with 5-minute timeout (up from 90 seconds)
   - Proper async handling with state tracking
   - Better user feedback and error messages
-+ *Issue #4 - Deleted Meetings*: Implemented intelligent hybrid sync
++ *Issue [[https://github.com/ifitzpat/org-outlook/issues/4][#4]] - Deleted Meetings*: Implemented intelligent hybrid sync
   - Delta sync for fast daily syncs
   - Automatic full sync for periodic validation
   - Handles deleted and cancelled events properly
@@ -340,7 +340,7 @@ Initial release
  - Accepting an event doesn't change the event status from =REQUEST= to =MEETING= until the
    next sync.
  - This package depends on [[https://github.com/eschulte/emacs-web-server][emacs-web-server]] which conflicts with
-   [[https://github.com/skeeto/emacs-web-server][skeeto/emacs-web-server]]. A workaround is mentioned in #10.
+   [[https://github.com/skeeto/emacs-web-server][skeeto/emacs-web-server]]. A workaround is mentioned in [[https://github.com/ifitzpat/org-outlook/issues/10][#10]].
    
 ** Fixed in 0.1.2-beta
 
