@@ -65,7 +65,7 @@ applications. In this case, unfortunately, you won't be able to use =org-outlook
  - [[https://github.com/jeremy-compostella/org-msg][org-msg]]  
  - [[https://github.com/tkf/emacs-request/tree/master][emacs-request]]  
  - [[https://github.com/hniksic/emacs-htmlize][htmlize]]
- - [[https://github.com/eschulte/emacs-web-server][emacs-web-server]] (if you experience a conflict, see: [[*Known issues][Known issues]])
+ - [[https://github.com/eschulte/emacs-web-server][emacs-web-server]] (if you experience a conflict, see: [[#Known issues][Known issues]])
 
 ** Optional
  
