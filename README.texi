@@ -56,6 +56,7 @@ Usage
 
 Changelog
 
+* 0.1.3-beta (2025-11-30): 013-beta (2025-11-30). 
 * 0.1.2-beta (2025-11-29): 012-beta (2025-11-29). 
 * 0.1.1-beta (2025-11-29): 011-beta (2025-11-29). 
 * 0.1.0-beta (2025-11-20): 010-beta (2025-11-20). 
@@ -65,21 +66,27 @@ Changelog
 * 0.0.2-pre-alpha: 002-pre-alpha. 
 * 0.0.1-pre-alpha: 001-pre-alpha. 
 
-0.1.2-beta (2025-11-29)
+0.1.3-beta (2025-11-30)
 
 * New Features::
 * Fixed Issues::
+* Breaking Changes::
+
+0.1.2-beta (2025-11-29)
+
+* New Features: New Features (1). 
+* Fixed Issues: Fixed Issues (1). 
 
 0.1.1-beta (2025-11-29)
 
-* Fixed Issues: Fixed Issues (1). 
-* Breaking Changes::
+* Fixed Issues: Fixed Issues (2). 
+* Breaking Changes: Breaking Changes (1). 
 
 0.1.0-beta (2025-11-20)
 
-* Fixed Issues: Fixed Issues (2). 
-* New Features: New Features (1). 
-* Breaking Changes: Breaking Changes (1). 
+* Fixed Issues: Fixed Issues (3). 
+* New Features: New Features (2). 
+* Breaking Changes: Breaking Changes (2). 
 
 Notes
 
@@ -124,7 +131,15 @@ Each recurring event instance has unique ID for individual refiling
 @item
 @strong{At-a-glance overview of your appointments and free timeslots when used with} @uref{https://github.com/ichernyshovvv/org-timeblock, org-timeblock}
 @item
-Org @strong{capture template} to quickly plan meetings (needs testing).
+Org @strong{capture template} to quickly plan meetings with @strong{Teams meeting integration}
+@itemize
+@item
+Automatic Teams meeting creation with join links
+@item
+Availability checking for all invitees
+@item
+Interactive conflict resolution
+@end itemize
 @end itemize
 
 @emph{Planned features & improvements:}
@@ -183,6 +198,8 @@ applications. In this case, unfortunately, you won't be able to use @samp{org-ou
 @uref{https://github.com/tkf/emacs-request/tree/master, emacs-request}  
 @item
 @uref{https://github.com/hniksic/emacs-htmlize, htmlize}
+@item
+@uref{https://github.com/eschulte/emacs-web-server, emacs-web-server} (if you experience a conflict, see: @ref{Known issues})
 @end itemize
 
 @node Optional
@@ -192,9 +209,29 @@ A standard oauth client is provided with @samp{org-outlook}, you are of course, 
 own Microsoft Entra App Registration instead. To do so you will need to create an App
 Registration in Microsoft Entra (Formally Azure Active Directory) via
 @uref{https://portal.azure.com}. Optionally make a note of your @samp{tenant-id} (you can provide
-@samp{org-outlook-tenant-id} to restrict the scope of your app to your Azure tenant). The app
-will need the @samp{Calendars.Read}, @samp{Calendars.ReadWrite}, and @samp{offline_access} API
-permissions. Under "Authentication" click @samp{Add a platform} and add @samp{http://localhost:9004} as
+@samp{org-outlook-tenant-id} to restrict the scope of your app to your Azure tenant).
+
+@strong{Required API permissions:}
+@itemize
+@item
+@samp{Calendars.Read} - Read calendar events
+@item
+@samp{Calendars.ReadWrite} - Create and modify calendar events
+@item
+@samp{offline_access} - Maintain access when user is offline
+@end itemize
+
+@strong{Additional permissions for Teams meeting functionality:}
+@itemize
+@item
+@samp{OnlineMeetings.ReadWrite} - Create Teams meetings with join links
+@item
+@samp{Calendars.ReadBasic.All} - Check availability of other users
+@end itemize
+
+@strong{Note:} For Teams functionality, you may need to use the @samp{https://graph.microsoft.com/.default} scope instead of individual permissions due to Microsoft Graph API limitations.
+
+Under "Authentication" click @samp{Add a platform} and add @samp{http://localhost:9004} as
 the redirect uri. At the bottom of the page ensure @samp{Allow public client flows} is toggled to
 "Yes". From the "Overview" tab copy the @samp{Application (client) id} and insert into your
 config as specified below.
@@ -313,6 +350,8 @@ The template will prompt for:
 @item
 Event title
 @item
+Teams meeting (yes/no)
+@item
 Invitees (space-separated email addresses)
 @item
 Location
@@ -326,6 +365,8 @@ Upon finalization (@samp{C-c C-c}), the system automatically:
 Checks availability of all invitees
 @item
 Warns if conflicts exist with options to continue, edit, or cancel
+@item
+Creates Teams meeting with join link if Teams meeting was selected
 @item
 Creates the event in Outlook if proceeding
 @end itemize
@@ -383,7 +424,7 @@ Fill in the template:
 @item
 @samp{INVITEES:} Space-separated email addresses (e.g., @samp{john@@company.com mary@@company.com})
 @item
-@samp{LOCATION:} Meeting location or "Teams" for online meetings  
+@samp{LOCATION:} Meeting location
 @item
 @samp{MEETING-TIME:} Use org timestamp (e.g., @samp{<2025-12-01 Mon 14:00-15:00>})
 @end itemize
@@ -400,6 +441,14 @@ If conflicts are detected, choose from:
 @samp{(q)uit capture} - Cancel the meeting creation
 @end itemize
 @item
+If Teams meeting was selected:
+@itemize
+@item
+Automatically creates Teams meeting with join link
+@item
+Join link is included in the meeting body and org entry
+@end itemize
+@item
 Meeting is automatically created in Outlook and synced to your org file
 @end enumerate
 @end itemize
@@ -410,6 +459,7 @@ Meeting is automatically created in Outlook and synced to your org file
 @emph{Note:} Breaking changes may be made before version 1.0, but in the event of major changes, attempts at backward compatibility will be made with obsolescence declarations, translation of arguments, etc.  Users who need stability guarantees before 1.0 may choose to use tagged stable releases.
 
 @menu
+* 0.1.3-beta (2025-11-30): 013-beta (2025-11-30). 
 * 0.1.2-beta (2025-11-29): 012-beta (2025-11-29). 
 * 0.1.1-beta (2025-11-29): 011-beta (2025-11-29). 
 * 0.1.0-beta (2025-11-20): 010-beta (2025-11-20). 
@@ -420,15 +470,76 @@ Meeting is automatically created in Outlook and synced to your org file
 * 0.0.1-pre-alpha: 001-pre-alpha. 
 @end menu
 
-@node 012-beta (2025-11-29)
-@section 0.1.2-beta (2025-11-29)
+@node 013-beta (2025-11-30)
+@section 0.1.3-beta (2025-11-30)
 
 @menu
 * New Features::
 * Fixed Issues::
+* Breaking Changes::
 @end menu
 
 @node New Features
+@subsection New Features
+
+@itemize
+@item
+@strong{Teams meeting integration} - Create Teams meetings directly from org-capture template
+@itemize
+@item
+Set location to "Teams" to automatically create Teams meeting with join link
+@item
+Join links are included in meeting body and org entry properties
+@end itemize
+@item
+@strong{Comprehensive availability checking system}
+@itemize
+@item
+@samp{org-outlook-check-availability} - Interactive availability reports
+@item
+@samp{org-outlook-persons-available-p} - Programmatic availability checking
+@item
+@samp{org-outlook-i-am-available-p} - Check your own availability (requires @samp{org-outlook-user-email})
+@end itemize
+@item
+Enhanced org-capture template with conflict resolution workflow
+@end itemize
+
+@node Fixed Issues
+@subsection Fixed Issues
+
+@itemize
+@item
+@strong{No issue number:} Fixed buffer mode switching bug where any buffer would be switched to org-mode during event insertion
+@end itemize
+
+@node Breaking Changes
+@subsection Breaking Changes
+
+@itemize
+@item
+@strong{Authentication scope change} - Now uses @samp{https://graph.microsoft.com/.default} scope for broader API access
+@item
+@strong{Token cache invalidation} - Users must delete @samp{~/.cache/outlook.plist} and re-authenticate
+@item
+@strong{New API permissions required} for Teams functionality:
+@itemize
+@item
+@samp{OnlineMeetings.ReadWrite} (Teams meeting creation)
+@item
+@samp{Calendars.ReadBasic.All} (availability checking)
+@end itemize
+@end itemize
+
+@node 012-beta (2025-11-29)
+@section 0.1.2-beta (2025-11-29)
+
+@menu
+* New Features: New Features (1). 
+* Fixed Issues: Fixed Issues (1). 
+@end menu
+
+@node New Features (1)
 @subsection New Features
 
 @itemize
@@ -437,7 +548,7 @@ org-capture-template now checks for attendee availability and allows you to edit
 event if one or more attendees is not available
 @end itemize
 
-@node Fixed Issues
+@node Fixed Issues (1)
 @subsection Fixed Issues
 
 @itemize
@@ -449,11 +560,11 @@ event if one or more attendees is not available
 @section 0.1.1-beta (2025-11-29)
 
 @menu
-* Fixed Issues: Fixed Issues (1). 
-* Breaking Changes::
+* Fixed Issues: Fixed Issues (2). 
+* Breaking Changes: Breaking Changes (1). 
 @end menu
 
-@node Fixed Issues (1)
+@node Fixed Issues (2)
 @subsection Fixed Issues
 
 @itemize
@@ -465,7 +576,7 @@ event if one or more attendees is not available
 @strong{No issue number:} current-buffer mode change
 @end itemize
 
-@node Breaking Changes
+@node Breaking Changes (1)
 @subsection Breaking Changes
 
 @itemize
@@ -479,12 +590,12 @@ event if one or more attendees is not available
 Major stability and reliability improvements:
 
 @menu
-* Fixed Issues: Fixed Issues (2). 
-* New Features: New Features (1). 
-* Breaking Changes: Breaking Changes (1). 
+* Fixed Issues: Fixed Issues (3). 
+* New Features: New Features (2). 
+* Breaking Changes: Breaking Changes (2). 
 @end menu
 
-@node Fixed Issues (2)
+@node Fixed Issues (3)
 @subsection Fixed Issues
 
 @itemize
@@ -526,7 +637,7 @@ Self-healing with automatic error recovery
 @end itemize
 @end itemize
 
-@node New Features (1)
+@node New Features (2)
 @subsection New Features
 
 @itemize
@@ -546,7 +657,7 @@ New configuration variable: @samp{org-outlook-full-sync-interval-days}
 Force full sync with prefix argument: @samp{C-u M-x org-outlook-sync}
 @end itemize
 
-@node Breaking Changes (1)
+@node Breaking Changes (2)
 @subsection Breaking Changes
 
 @itemize
@@ -600,6 +711,9 @@ Initial release
 @item
 Accepting an event doesn't change the event status from @samp{REQUEST} to @samp{MEETING} until the
 next sync.
+@item
+This package depends on @uref{https://github.com/eschulte/emacs-web-server, emacs-web-server} which conflicts with
+@uref{https://github.com/skeeto/emacs-web-server, skeeto/emacs-web-server}. A workaround is mentioned in #10.
 @end itemize
 
 @node Fixed in 012-beta
