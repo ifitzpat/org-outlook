@@ -32,6 +32,7 @@
 (require 'org-ml)
 (require 'html2org)
 (require 'request)
+(require 'plz)
 (require 'org-msg)
 (require 'plstore)
 (require 'web-server)
@@ -91,7 +92,7 @@
     (plstore-close org-outlook-token-cache)
     (if auth-timestamp
 	(time-less-p (time-add (parse-iso8601-time-string auth-timestamp) (seconds-to-time timeout-seconds))  (current-time))
-      nil)))
+      t)))  ; No timestamp means unknown state - treat as timed out
 
 (defun token-cache-exists ()
   (file-regular-p org-outlook-token-cache-file))
@@ -234,37 +235,64 @@ Returns the authorization code on success."
     			  ;(org-outlook-auth-token)
 			  )
 			)))
-    ;(message auth_code)
-    (request org-outlook-token-url
-      :type "POST"
-      :sync t
-      :data `(("tenant" . ,org-outlook-tenant-id)
-	      ("client_id" . ,org-outlook-client-id)
-	      ("scope" . ,(concat "offline_access " org-outlook-resource-url))
-	      ,(if refresh_token
-		   `("refresh_token" . ,refresh_token)
-		 `("code" . ,auth_code))
-              ("redirect_uri" . "http://localhost:9004")
-	      ,(if refresh_token
-		   '("grant_type" . "refresh_token")
-	         '("grant_type" . "authorization_code"))
-	      ("code_verifier" . ,org-outlook-code-verifier))
-      :parser 'json-read
-      :success (cl-function
-		(lambda (&key data &allow-other-keys)
-		  (when data
-		    (org-outlook-set-token-field "access" `(:timestamp ,(format-time-string "%Y-%m-%dT%H:%M:%S" (current-time))) `(:access ,(assoc-default 'access_token data)))
-		    (org-outlook-set-token-field "refresh" `(:timestamp ,(format-time-string "%Y-%m-%dT%H:%M:%S" (current-time))) `(:refresh ,(assoc-default 'refresh_token data)))
-		    )))
-      :error (cl-function
-	      (lambda (&rest args &key error-thrown &allow-other-keys)
-		(message "Error getting access token: %S" error-thrown))))))
+    (message "Token exchange: grant_type=%s"
+	     (if refresh_token "refresh_token" "authorization_code"))
+    (let* ((data-pairs
+	    (append
+	     `(("tenant" . ,org-outlook-tenant-id)
+	       ("client_id" . ,org-outlook-client-id)
+	       ("scope" . ,(concat "offline_access " org-outlook-resource-url))
+	       ,(if refresh_token
+		    `("refresh_token" . ,refresh_token)
+		  `("code" . ,auth_code))
+	       ("redirect_uri" . "http://localhost:9004")
+	       ,(if refresh_token
+		    '("grant_type" . "refresh_token")
+		  '("grant_type" . "authorization_code")))
+	     (unless refresh_token
+	       `(("code_verifier" . ,org-outlook-code-verifier)))))
+	   (post-body
+	    (mapconcat
+	     (lambda (pair)
+	       (concat (url-hexify-string (car pair))
+		       "="
+		       (url-hexify-string (cdr pair))))
+	     data-pairs "&"))
+	   (data
+	    (condition-case err
+		(plz 'post org-outlook-token-url
+		  :headers '(("Content-Type" . "application/x-www-form-urlencoded"))
+		  :body post-body
+		  :as #'json-read)
+	      (plz-error
+	       (message "Token exchange error: %S" err)
+	       nil))))
+      (if (and data (assoc-default 'access_token data))
+	  (progn
+	    (org-outlook-set-token-field "access"
+					`(:timestamp ,(format-time-string "%Y-%m-%dT%H:%M:%S" (current-time)))
+					`(:access ,(assoc-default 'access_token data)))
+	    (org-outlook-set-token-field "refresh"
+					`(:timestamp ,(format-time-string "%Y-%m-%dT%H:%M:%S" (current-time)))
+					`(:refresh ,(assoc-default 'refresh_token data)))
+	    (message "Token exchange successful"))
+	(message "Token exchange FAILED: %s"
+		 (or (and data (assoc-default 'error_description data))
+		     (and data (assoc-default 'error data))
+		     "no response or no access_token in response"))
+	(error "Failed to get access token")))))
 
+(defun org-outlook-force-token-refresh ()
+  "Force a fresh token by clearing the access token timestamp and re-requesting."
+  (message "Forcing token refresh...")
+  (org-outlook-request-access-token))
 
 (defun org-outlook-bearer-token ()
   (if (or (token-timed-out)(not (token-cache-exists)) )
       (org-outlook-request-access-token))
-  (org-outlook-access-token))
+  (let ((token (org-outlook-access-token)))
+    (message "Bearer token: %s" (if token (concat (substring token 0 (min 20 (length token))) "...") "NIL"))
+    token))
 
 (defun org-outlook--skip (url)
   (string-match "%24skip=\\([0-9]*\\)" url)
@@ -706,26 +734,35 @@ Returns t to proceed with event creation, nil if user wants to edit."
 	(save-buffer)
 	))))
 
-(defun org-outlook-retrieve-events-delta (&optional nextlink)
+(defun org-outlook--build-query-string (params)
+  "URL-encode PARAMS alist into a query string.
+Only values are percent-encoded; parameter names are kept literal."
+  (mapconcat
+   (lambda (pair)
+     (concat (car pair) "=" (url-hexify-string (cdr pair))))
+   params "&"))
+
+(defun org-outlook-retrieve-events-delta (&optional nextlink retried)
   (interactive)
-  (let ((next (or nextlink 0)))
+  (let* ((url (if nextlink
+		 nextlink
+	       (concat org-outlook-events-delta-url "?"
+		       (org-outlook--build-query-string
+			`(("startdatetime" . ,(concat (org-outlook-start) "T00:00:00.000Z"))
+			  ("enddatetime" . ,(concat (org-outlook-end) "T23:59:59.000Z"))))))))
     (message (concat "delta API call: " (or nextlink "First page")))
-    (request (or nextlink org-outlook-events-delta-url)
-      :params (if nextlink nil `(("startdatetime" . ,(concat (org-outlook-start) "T00:00:00.000Z" )) ("enddatetime" . ,(concat (org-outlook-end) "T23:59:59.000Z" ))) )
-      :type "GET"
-      :sync t
-      :headers `(("Authorization" . ,(concat "Bearer " (org-outlook-bearer-token))))
-      :parser 'json-read
-      :error (cl-function
-	      (lambda (&rest args &key error-thrown &allow-other-keys)
-		(message "Error retrieving events: %S" error-thrown)))
-      :success (cl-function
-		(lambda (&key response &allow-other-keys)
-		  (when response
-		    (message "got response")
-		    )
-		  )
-		))))
+    (condition-case err
+	(plz 'get url
+	  :headers `(("Authorization" . ,(concat "Bearer " (org-outlook-bearer-token))))
+	  :as #'json-read)
+      (plz-error
+       (if (not retried)
+	   (progn
+	     (message "Delta API error, refreshing token and retrying: %S" err)
+	     (org-outlook-force-token-refresh)
+	     (org-outlook-retrieve-events-delta nextlink t))
+	 (message "Error retrieving delta events: %S" err)
+	 nil)))))
 
 (defun org-outlook-last-delta ()
   (let*
@@ -739,7 +776,7 @@ Returns t to proceed with event creation, nil if user wants to edit."
   (interactive)
   (message (concat "Retrieving: " (or nextlink "first page")))
   (let* ((nextlink (or nextlink (org-outlook-last-delta)))
-	 (data (request-response-data (org-outlook-retrieve-events-delta nextlink)))
+	 (data (org-outlook-retrieve-events-delta nextlink))
 	 (events (append (cdr (nth 1 data)) nil))
 	 (deltalink (assoc-default '@odata.deltaLink data))
 	 (nextlink (assoc-default '@odata.nextLink data)))
@@ -750,29 +787,34 @@ Returns t to proceed with event creation, nil if user wants to edit."
       (append events (org-outlook-retrieve-delta-pages nextlink))
       )))
 
-(defun org-outlook-retrieve-events (&optional skip)
-  (let ((next (or skip 0)))
-    (request org-outlook-events-url
-      :params `(("startdatetime" . ,(concat (org-outlook-start) "T00:00:00.000Z" )) ("enddatetime" . ,(concat (org-outlook-end) "T23:59:59.000Z" )) ("$skip" . ,next))
-      :type "GET"
-      :sync t
-      :headers `(("Authorization" . ,(concat "Bearer " (org-outlook-bearer-token)))
- 		 ("Prefer" . ,(format "outlook.timezone=\"%s\"" org-outlook-local-timezone)))
-      :parser 'json-read
-      :error (cl-function
-	      (lambda (&rest args &key error-thrown &allow-other-keys)
-		(message "Error retrieving events: %S" error-thrown)))
-      :success (cl-function
-		(lambda (&key data &allow-other-keys)
-		  (when data
-		    (message "data received")
-		    ))))))
+(defun org-outlook-retrieve-events (&optional skip retried)
+  (let* ((next (or skip 0))
+	 (url (format "%s?startDateTime=%s&endDateTime=%s"
+		      org-outlook-events-url
+		      (concat (org-outlook-start) "T00:00:00.000Z")
+		      (concat (org-outlook-end) "T23:59:59.000Z")))
+	 (url (if (> next 0) (format "%s&$skip=%d" url next) url)))
+    (message "Requesting: %s" url)
+    (condition-case err
+	(plz 'get url
+	  :headers `(("Authorization" . ,(concat "Bearer " (org-outlook-bearer-token)))
+		     ("Prefer" . ,(format "outlook.timezone=\\\"%s\\\"" org-outlook-local-timezone)))
+	  :as #'json-read)
+      (plz-error
+       (if (not retried)
+	   (progn
+	     (message "Events API error, refreshing token and retrying: %S" err)
+	     (org-outlook-force-token-refresh)
+	     (org-outlook-retrieve-events skip t))
+	 (message "Error retrieving events: %S" err)
+	 nil)))))
 
 (defun org-outlook-retrieve-pages (&optional skip)
   (message (concat "Retrieving: " (or (if skip (number-to-string skip) nil) "first page")))
-  (let* ((data (request-response-data (org-outlook-retrieve-events skip)))
+  (let* ((data (org-outlook-retrieve-events skip))
 	 (events (append (cdr (nth 1 data)) nil))
 	 (nextlink (assoc-default '@odata.nextLink data)))
+    (message "Events received: %d" (length events))
     (if nextlink
 	(append events (org-outlook-retrieve-pages (org-outlook--skip nextlink)))
       events
@@ -857,7 +899,7 @@ Set to nil to disable automatic full syncs.")
 (defun org-outlook-init-delta-link ()
   "Initialize delta link after full sync for subsequent delta syncs."
   (message "Initializing delta link...")
-  (let* ((data (request-response-data (org-outlook-retrieve-events-delta)))
+  (let* ((data (org-outlook-retrieve-events-delta))
          (deltalink (assoc-default '@odata.deltaLink data)))
     (if deltalink
         (progn
